@@ -8,13 +8,16 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { VideoService } from './video.service';
 import { RequestWithUser } from '../../common/types/request-with-user.interface';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('video')
 export class VideoController {
@@ -23,12 +26,15 @@ export class VideoController {
   @Post('upload')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
+  @UseInterceptors(FileInterceptor('file'))
   uploadVideo(
-    @Body('title') title: string,
-    @Body('file') videoUrl: string, // <--- заменили videoUrl на file
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { title?: string; file?: string; videoUrl?: string },
     @Req() req: RequestWithUser,
   ) {
-    return this.videoService.uploadVideo(videoUrl, title, req.user.id);
+    const title = body.title ?? '';
+    const videoUrl = typeof body.file === 'string' ? body.file : body.videoUrl;
+    return this.videoService.uploadVideo(title, req.user.id, file, videoUrl);
   }
 
   @Get()
@@ -55,7 +61,7 @@ export class VideoController {
   async updateVideo(
     @Param('id') id: string,
     @Body('title') title: string,
-    @Body('file') videoUrl: string,
+    @Body('videoUrl') videoUrl: string,
   ) {
     return this.videoService.updateVideo(+id, title, videoUrl);
   }

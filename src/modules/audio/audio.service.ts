@@ -22,19 +22,20 @@ export class AudioService {
     return true;
   }
 
-  // src/modules/audio/audio.service.ts
   async getAllAudio(
     page: number | 'all' = 1,
     search = '',
+    sortBy?: string,
+    sortOrder: 'asc' | 'desc' = 'desc',
   ): Promise<{
-    data: { id: number; title: string; url: string }[];
+    data: { id: number; title: string; url: string; createdAt: Date }[];
     meta: {
       currentPage: number | 'all';
       totalPages: number;
       totalItems: number;
     };
   }> {
-    const take = 12;
+    const take = 20;
     const isAll = page === 'all';
     const skip = isAll ? undefined : (Number(page) - 1) * take;
 
@@ -47,11 +48,19 @@ export class AudioService {
 
     const totalCount = await this.prisma.audio.count({ where });
 
+    // безопасная валидация полей сортировки
+    const allowedFields = new Set(['id', 'title', 'createdAt']);
+    const orderField =
+      sortBy && allowedFields.has(sortBy)
+        ? (sortBy as keyof typeof allowedFields)
+        : 'createdAt';
+    const order: 'asc' | 'desc' = sortOrder === 'asc' ? 'asc' : 'desc';
+
     const audios = await this.prisma.audio.findMany({
       where,
-      select: { id: true, title: true, url: true },
+      select: { id: true, title: true, url: true, createdAt: true },
       ...(isAll ? {} : { skip, take }),
-      orderBy: { createdAt: 'desc' },
+      orderBy: { [orderField]: order },
     });
 
     const totalPages = isAll ? 1 : Math.ceil(totalCount / take);

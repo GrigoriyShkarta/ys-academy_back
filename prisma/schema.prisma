@@ -48,53 +48,12 @@ model Module {
 
 model Lesson {
   id        Int           @id @default(autoincrement())
-  index    Int?
-  altTitles   Json?        @default("[]")
   title     String
-  blocks    LessonBlock[]
+  content   Json @default("[]")
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   moduleId  Int?
   module    Module?        @relation(fields: [moduleId], references: [id])
-}
-
-model LessonBlock {
-  id        Int           @id @default(autoincrement())
-  index     Int
-  title         String?       @default("Untitled Block")
-  items     LessonItem[]
-  lessonBlockId  Int
-  lesson     Lesson     @relation(fields: [lessonBlockId], references: [id])
-}
-
-model LessonItem {
-  id         Int        @id @default(autoincrement())
-  type       LessonItemType
-  source     LessonItemSource
-  layout     Json       // layout храним в JSON
-  orderIndex Int
-
-  // связи с банками
-  audioId    Int?
-  videoId    Int?
-  photoId    Int?
-  textId     Int?
-
-  audioPublicId String? // для удобства удаления из Cloudinary
-  videoPublicId String?
-  photoPublicId String?
-
-  audio      Audio?     @relation(fields: [audioId], references: [id])
-  video      Video?     @relation(fields: [videoId], references: [id])
-  photo      Photo?     @relation(fields: [photoId], references: [id])
-  text       Text?      @relation(fields: [textId], references: [id])
-
-  // связь с уроком
-  lessonId   Int
-  lessonBlock     LessonBlock     @relation(fields: [lessonId], references: [id])
-
-  // контент, если source = 'custom'
-  content    String?
 }
 
 enum LessonItemType {
@@ -119,7 +78,6 @@ model Audio {
   createdAt   DateTime @default(now())
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
-  lessonItems LessonItem[]
 }
 
 model Photo {
@@ -131,7 +89,6 @@ model Photo {
   createdAt   DateTime @default(now())
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
-  lessonItems LessonItem[]
 }
 
 model Video {
@@ -143,7 +100,6 @@ model Video {
   createdAt   DateTime @default(now())
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
-  lessonItems LessonItem[]
 }
 
 model Text {
@@ -154,7 +110,6 @@ model Text {
   createdAt   DateTime @default(now())
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
-  lessonItems LessonItem[]
 }
 
 

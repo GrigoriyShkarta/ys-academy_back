@@ -10,7 +10,6 @@ export class PhotoService {
   ) {}
 
   async uploadPhoto(file: Express.Multer.File, title: string, userId: number) {
-    console.log('check');
     const uploaded = await this.fileService.uploadFile(file, 'image');
     await this.prisma.photo.create({
       data: {
@@ -24,7 +23,7 @@ export class PhotoService {
   }
 
   async getAllAPhoto(page: number | 'all' = 1, search = '') {
-    const take = 10;
+    const take = 20;
     const isAll = page === 'all';
     const skip = isAll ? undefined : (Number(page) - 1) * take;
 

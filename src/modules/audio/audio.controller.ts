@@ -39,7 +39,12 @@ export class AudioController {
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  getAllAudio(@Query('page') page?: string, @Query('search') search?: string) {
+  getAllAudio(
+    @Query('page') page?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
     let pageParam: number | 'all' | undefined;
 
     if (page === 'all') {
@@ -51,7 +56,16 @@ export class AudioController {
       pageParam = undefined;
     }
 
-    return this.audioService.getAllAudio(pageParam, search || '');
+    // нормализуем sortOrder
+    const order =
+      sortOrder && sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    return this.audioService.getAllAudio(
+      pageParam,
+      search || '',
+      sortBy,
+      order,
+    );
   }
 
   @Patch(':id')

@@ -63,8 +63,7 @@ export class CreateLessonDto {
   @IsNotEmpty()
   title: string;
 
+  @IsOptional()
   @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateLessonBlockDto)
-  blocks: CreateLessonBlockDto[];
+  blocks?: any[];
 }
