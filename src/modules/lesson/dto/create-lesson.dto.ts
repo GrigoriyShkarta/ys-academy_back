@@ -63,6 +63,10 @@ export class CreateLessonDto {
   @IsNotEmpty()
   title: string;
 
+  @IsString()
+  @IsOptional()
+  cover?: string;
+
   @IsOptional()
   @IsArray()
   blocks?: any[];

@@ -1,13 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import {
-  CreateLessonDto,
-  CreateLessonItemDto,
-  LessonItemSource,
-  LessonItemType,
-} from './dto/create-lesson.dto';
+import { CreateLessonDto } from './dto/create-lesson.dto';
 import { PrismaService } from '../../prisma.service';
 import { FileService } from '../file/file.service';
-import { UpdateLessonItemDto } from './dto/update-lesson.dto';
 
 @Injectable()
 export class LessonService {
@@ -20,6 +14,7 @@ export class LessonService {
     await this.prisma.lesson.create({
       data: {
         title: dto.title,
+        cover: dto?.cover ?? '',
         content: dto.blocks || [],
       },
     });
@@ -37,88 +32,18 @@ export class LessonService {
       where: { id },
       data: {
         title: dto.title,
+        cover: dto?.cover ?? '',
         content: dto.blocks || [],
       },
     });
   }
 
-  async deleteLesson() {}
+  async deleteLesson(id: number) {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id } });
+    if (!lesson) throw new BadRequestException('Lesson not found');
 
-  private async getBankItemUrl(
-    item: CreateLessonItemDto | UpdateLessonItemDto,
-  ): Promise<string | undefined> {
-    if (item.bankItemId) {
-      switch (item.type) {
-        case LessonItemType.VIDEO: {
-          const video = await this.prisma.video.findUnique({
-            where: { id: Number(item.bankItemId) },
-          });
-          if (!video) throw new BadRequestException('Video not found in bank');
-          return video.url;
-        }
-        case LessonItemType.AUDIO: {
-          const audio = await this.prisma.audio.findUnique({
-            where: { id: Number(item.bankItemId) },
-          });
-          if (!audio) throw new BadRequestException('Audio not found in bank');
-          return audio.url;
-        }
-        case LessonItemType.IMAGE: {
-          const photo = await this.prisma.photo.findUnique({
-            where: { id: Number(item.bankItemId) },
-          });
-          if (!photo) throw new BadRequestException('Photo not found in bank');
-          return photo.url;
-        }
-        case LessonItemType.TEXT: {
-          const text = await this.prisma.text.findUnique({
-            where: { id: Number(item.bankItemId) },
-          });
-          if (!text) throw new BadRequestException('Text not found in bank');
-          return text.content;
-        }
-      }
-    }
-    return item.content as string; // Возвращаем content из DTO, если bankItemId отсутствует
-  }
-
-  private async handleCustomSource(
-    item: CreateLessonItemDto | UpdateLessonItemDto,
-  ): Promise<{ publicId: string; content: string } | string> {
-    if (item.type === LessonItemType.TEXT) {
-      return (item.content as string) ?? '';
-    }
-
-    const fileType = item.type === LessonItemType.AUDIO ? 'video' : item.type;
-
-    const uploadResult = await this.fileService.uploadFile(
-      item.content as Express.Multer.File,
-      fileType ?? 'image',
-    );
-
-    return {
-      publicId: uploadResult.public_id,
-      content: uploadResult.secure_url,
-    };
-  }
-
-  private getBankRelationFields(
-    item: CreateLessonItemDto | UpdateLessonItemDto,
-  ) {
-    if (item.source !== LessonItemSource.BANK || !item.bankItemId) return {};
-
-    switch (item.type) {
-      case LessonItemType.VIDEO:
-        return { videoId: Number(item.bankItemId) };
-      case LessonItemType.AUDIO:
-        return { audioId: Number(item.bankItemId) };
-      case LessonItemType.IMAGE:
-        return { photoId: Number(item.bankItemId) };
-      case LessonItemType.TEXT:
-        return { textId: Number(item.bankItemId) };
-      default:
-        return {};
-    }
+    await this.prisma.lesson.delete({ where: { id } });
+    return { success: true };
   }
 
   async getUnassignedLessons(search = '') {
@@ -128,6 +53,9 @@ export class LessonService {
           contains: search,
           mode: 'insensitive', // не учитываем регистр
         },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
       select: {
         id: true,

@@ -39,8 +39,8 @@ export class LessonController {
   @Delete('/:id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  async deleteLesson() {
-    return this.lessonService.deleteLesson();
+  async deleteLesson(@Param('id') id: number) {
+    return this.lessonService.deleteLesson(id);
   }
 
   @Get('unassigned')
