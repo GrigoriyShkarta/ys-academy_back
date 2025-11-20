@@ -37,7 +37,7 @@ export class AudioService {
   }> {
     const take = 20;
     const isAll = page === 'all';
-    const skip = isAll ? undefined : (Number(page) - 1) * take;
+    const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
 
     const where = {
       title: {

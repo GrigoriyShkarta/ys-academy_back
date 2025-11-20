@@ -49,6 +49,7 @@ model Module {
 model Lesson {
   id        Int           @id @default(autoincrement())
   title     String
+  index   Int?
   cover    String?
   content   Json @default("[]")
   createdAt DateTime       @default(now())

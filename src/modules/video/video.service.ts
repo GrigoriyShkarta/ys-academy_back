@@ -42,7 +42,7 @@ export class VideoService {
   async getAllVideo(page: number | 'all' = 1, search = '') {
     const take = 20;
     const isAll = page === 'all';
-    const skip = isAll ? undefined : (Number(page) - 1) * take;
+    const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
 
     const totalCount = await this.prisma.video.count({
       where: {

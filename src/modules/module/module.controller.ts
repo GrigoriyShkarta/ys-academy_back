@@ -1,8 +1,11 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
+  Param,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -11,6 +14,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ModuleService } from './module.service';
+import { ModuleDto } from './dto/module.dto';
 
 @Controller('module')
 export class ModuleController {
@@ -19,35 +23,34 @@ export class ModuleController {
   @Post('create')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  @UseInterceptors(FileInterceptor('image'))
-  async createModule() {
-    return this.moduleService.createModule();
+  async createModule(@Body() body: ModuleDto) {
+    return this.moduleService.createModule(body);
   }
 
   @Post('update/:id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
   @UseInterceptors(FileInterceptor('image'))
-  async updateModule() {
-    return this.moduleService.updateModule();
+  async updateModule(@Param('id') id: number, @Body() body: ModuleDto) {
+    return this.moduleService.updateModule(body, id);
   }
 
   @Delete('/:id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  async deleteModule() {
-    return this.moduleService.deleteModule();
+  async deleteModule(@Param('id') id: number) {
+    return this.moduleService.deleteModule(id);
   }
 
   @Get()
   @UseGuards(AuthGuard('jwt'))
-  getAllModules() {
-    return this.moduleService.getModules();
+  getAllModules(@Query('search') search?: string) {
+    return this.moduleService.getModules({ search: search || '' });
   }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
-  getModule() {
-    return this.moduleService.getModule();
+  getModule(@Param('id') id: number) {
+    return this.moduleService.getModule(id);
   }
 }

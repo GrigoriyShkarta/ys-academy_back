@@ -25,7 +25,7 @@ export class PhotoService {
   async getAllAPhoto(page: number | 'all' = 1, search = '') {
     const take = 20;
     const isAll = page === 'all';
-    const skip = isAll ? undefined : (Number(page) - 1) * take;
+    const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
 
     // Считаем общее количество аудио с учетом поиска
     const totalCount = await this.prisma.photo.count({
