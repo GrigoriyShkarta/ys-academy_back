@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   Req,
@@ -42,5 +43,11 @@ export class UserController {
   @Roles('admin', 'super_admin')
   create(@Body() body: CreateUserDto) {
     return this.userService.create(body);
+  }
+
+  @Get(':id')
+  @UseGuards(AuthGuard('jwt'))
+  getStudent(@Param('id') id: number) {
+    return this.userService.getStudentById(id);
   }
 }

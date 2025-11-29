@@ -123,10 +123,39 @@ export class ModuleService {
     });
   }
 
-  async getModule(id: number) {
-    return this.prisma.module.findUnique({
+  async getModule(id: number, userId: number, role: string) {
+    const module = await this.prisma.module.findUnique({
       where: { id },
-      include: { lessons: true },
+      include: { lessons: { orderBy: { index: 'asc' } } },
     });
+    if (!module) throw new Error('Module not found');
+
+    // Если userId не передан — возвращаем модуль как есть
+    if (!userId) return module;
+
+    const lessonIds = module.lessons.map((l) => l.id);
+
+    // Получаем доступы пользователя только для уроков этого модуля
+    const accesses = await this.prisma.userLessonAccess.findMany({
+      where: { userId, lessonId: { in: lessonIds } },
+      select: { lessonId: true, blocks: true },
+    });
+
+    const accessMap = new Map<number, number[]>();
+    accesses.forEach((a) => accessMap.set(a.lessonId, a.blocks));
+
+    const lessonsWithAccess = module.lessons.map((l) => {
+      const blocks = accessMap.get(l.id); // может быть undefined или массив id блоков
+
+      return {
+        ...l,
+        access:
+          role === 'admin' ||
+          role === 'super_admin' ||
+          (blocks && blocks?.length > 0),
+      };
+    });
+
+    return { ...module, lessons: lessonsWithAccess };
   }
 }

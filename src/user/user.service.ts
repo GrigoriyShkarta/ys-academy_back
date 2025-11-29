@@ -9,18 +9,83 @@ import { Prisma } from 'generated/prisma';
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  findById(id: number) {
-    return this.prisma.user.findUnique({ where: { id }, select: userSelect });
+  async findById(id: number) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: userSelect,
+    });
+  }
+
+  async getStudentById(id: number) {
+    const student = await this.prisma.user.findUnique({
+      where: { id },
+      select: studentSelect,
+    });
+
+    if (!student) return null;
+
+    const modules = await this.prisma.module.findMany({
+      include: {
+        lessons: {
+          include: {
+            userLessonAccesses: {
+              where: { userId: id },
+              select: { id: true },
+            },
+          },
+          orderBy: { index: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const modulesWithAccess = modules.map((m) => ({
+      ...m,
+      lessons: m.lessons.map((l) => {
+        const totalBlocks = Array.isArray(l.content) ? l.content.length : 0;
+
+        const accessRecord =
+          Array.isArray(student.userLessonAccesses) &&
+          student.userLessonAccesses.length > 0
+            ? (student.userLessonAccesses.find((a) => a.lessonId === l.id) ??
+              null)
+            : null;
+
+        const availableBlocks =
+          accessRecord && Array.isArray(accessRecord.blocks)
+            ? accessRecord.blocks.length
+            : 0;
+
+        const availableBlockIds = student.userLessonAccesses.find(
+          (lesson) => lesson.lessonId === l.id,
+        )?.blocks;
+
+        return {
+          id: l.id,
+          title: l.title,
+          access: availableBlocks > 0,
+          access_blocks: availableBlockIds ?? [],
+          blocks: `${availableBlocks}/${totalBlocks}`,
+        };
+      }),
+    }));
+
+    return {
+      ...student,
+      modules: modulesWithAccess,
+    };
   }
 
   async getAllStudents(params: {
-    page?: number;
+    page: number | 'all';
     search?: string;
     limit?: number;
   }) {
     const { page = 1, search = '', limit = 15 } = params;
 
-    const skip = (page - 1) * limit;
+    const take = 20;
+    const isAll = page === 'all';
+    const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
 
     const where: Prisma.UserWhereInput = {
       role: 'student',

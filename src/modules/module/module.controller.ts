@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ModuleService } from './module.service';
 import { ModuleDto } from './dto/module.dto';
+import { RequestWithUser } from '../../common/types/request-with-user.interface';
 
 @Controller('module')
 export class ModuleController {
@@ -50,7 +52,7 @@ export class ModuleController {
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
-  getModule(@Param('id') id: number) {
-    return this.moduleService.getModule(id);
+  getModule(@Param('id') id: number, @Req() req: RequestWithUser) {
+    return this.moduleService.getModule(id, req.user.id, req.user.role);
   }
 }

@@ -39,20 +39,65 @@ export class LessonController {
   @Delete('/:id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  async deleteLesson(@Param('id') id: number) {
+  async deleteLesson(@Param('id') id: number[]) {
     return this.lessonService.deleteLesson(id);
   }
 
   @Get('unassigned')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  async getUnassignedLessons(@Query('search') search: string) {
-    return this.lessonService.getUnassignedLessons(search || '');
+  async getLessonsWithStudentsAccept(@Query('search') search: string) {
+    return this.lessonService.getLessonsWithStudentsAccept(search || '');
+  }
+
+  @Get()
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'super_admin')
+  getAllLessons(
+    @Query('page') page?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
+    let pageParam: number | 'all' | undefined;
+
+    if (page === 'all') {
+      pageParam = 'all';
+    } else if (page) {
+      const n = Number(page);
+      pageParam = Number.isInteger(n) ? n : undefined;
+    } else {
+      pageParam = undefined;
+    }
+
+    // нормализуем sortOrder
+    const order =
+      sortOrder && sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    return this.lessonService.getAllLessons(
+      pageParam,
+      search || '',
+      sortBy,
+      order,
+    );
   }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   getLessonById(@Param('id') id: number) {
     return this.lessonService.getLesson(id);
+  }
+
+  @Post('assign')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'super_admin')
+  assignLesson(
+    @Body()
+    body: {
+      lessonIds: { id: number; blocks?: number[] }[];
+      userIds: number[];
+    },
+  ) {
+    return this.lessonService.grantLessonsAccess(body.userIds, body.lessonIds);
   }
 }

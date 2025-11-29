@@ -9,4 +9,5 @@ export const studentSelect = {
   id: true,
   name: true,
   email: true,
+  userLessonAccesses: true,
 };

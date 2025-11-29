@@ -33,7 +33,19 @@ model User {
   Audio Audio[]
   Photo Photo[]
   Video Video[]
-  Text Text[]
+
+  userLessonAccesses UserLessonAccess[]
+}
+
+model UserLessonAccess {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  lessonId  Int
+  blocks    Int[]    @default([])
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+  @@unique([userId, lessonId])
 }
 
 model Module {
@@ -56,6 +68,11 @@ model Lesson {
   updatedAt DateTime       @updatedAt
   moduleId  Int?
   module    Module?        @relation(fields: [moduleId], references: [id])
+
+  userLessonAccesses UserLessonAccess[]
+  categories  Category[] @relation("LessonCategories")
+
+  @@index([moduleId, index])
 }
 
 enum LessonItemType {
@@ -75,43 +92,55 @@ model Audio {
   id          Int      @id @default(autoincrement())
   title       String
   url         String
-  publicId    String  // ID из Cloudinary (для удаления)
-  tags        String[] // Массив тегов
+  publicId    String
   createdAt   DateTime @default(now())
+  // updatedAt DateTime   @updatedAt
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
+
+  // Связь с категориями
+  categories  Category[] @relation("AudioCategories")
 }
 
 model Photo {
   id          Int      @id @default(autoincrement())
   title       String
   url         String
-  publicId    String  // ID из Cloudinary (для удаления)
-  tags        String[] // Массив тегов
+  publicId    String
   createdAt   DateTime @default(now())
+  // updatedAt DateTime   @updatedAt
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
+
+  categories  Category[] @relation("PhotoCategories")
 }
 
 model Video {
   id          Int      @id @default(autoincrement())
   title       String
   url         String
-  publicId    String?  // ID из Cloudinary (для удаления)
-  tags        String[] // Массив тегов
+  publicId    String?
   createdAt   DateTime @default(now())
+  // updatedAt DateTime   @updatedAt
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
+
+  categories  Category[] @relation("VideoCategories")
 }
 
-model Text {
+model Category {
   id          Int      @id @default(autoincrement())
-  title       String
-  content         String
-  tags        String[] // Массив тегов
+  title       String   @unique // обычно название категории уникально
+  color String? @default("")
+
+  // Обратные связи (имена должны совпадать с теми, что в @relation())
+  audios      Audio[]  @relation("AudioCategories")
+  photos      Photo[]  @relation("PhotoCategories")
+  videos      Video[]  @relation("VideoCategories")
+  lessons Lesson[] @relation("LessonCategories")
+
   createdAt   DateTime @default(now())
-  userId      Int?
-  user        User?    @relation(fields: [userId], references: [id])
+  updatedAt DateTime   @updatedAt
 }
 
 

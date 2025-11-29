@@ -7,12 +7,22 @@ import { AudioModule } from './modules/audio/audio.module';
 import { FileModule } from './modules/file/file.module';
 import { PhotoModule } from './modules/photo/photo.module';
 import { VideoModule } from './modules/video/video.module';
-import { TextModule } from './modules/text/text.module';
 import { LessonModule } from './modules/lesson/lesson.module';
 import { ModuleModule } from './modules/module/module.module';
+import { CategoryModule } from './modules/category/category.module';
 
 @Module({
-  imports: [AuthModule, UserModule, AudioModule, FileModule, PhotoModule, VideoModule, TextModule, LessonModule, ModuleModule],
+  imports: [
+    AuthModule,
+    UserModule,
+    AudioModule,
+    FileModule,
+    PhotoModule,
+    VideoModule,
+    LessonModule,
+    ModuleModule,
+    CategoryModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
