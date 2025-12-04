@@ -21,14 +21,15 @@ enum Role {
 }
 
 model User {
-  id    Int     @default(autoincrement()) @id
-  email     String   @unique
-  name      String
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  role      Role     @default(student)
-  refreshToken String?  @map("refresh_token")
+  id                   Int      @id @default(autoincrement())
+  email                String   @unique
+  name                 String
+  password             String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  role                 Role     @default(student)
+  refreshToken         String?  @map("refresh_token")
+  previousRefreshToken String?  @map("previous_refresh_token")
 
   Audio Audio[]
   Photo Photo[]
@@ -45,34 +46,39 @@ model UserLessonAccess {
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
   lesson    Lesson   @relation(fields: [lessonId], references: [id])
+
   @@unique([userId, lessonId])
 }
 
 model Module {
-  id        Int       @id @default(autoincrement())
-  title     String
-  publicImgId    String?
-  url   String?
-  lessons   Lesson[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id          Int        @id @default(autoincrement())
+  title       String
+  publicImgId String?
+  url         String?
+  lessons  Lesson[] @relation("ModuleLessons")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  categories  Category[] @relation("ModuleCategories")
 }
 
 model Lesson {
-  id        Int           @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   title     String
-  index   Int?
-  cover    String?
-  content   Json @default("[]")
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  moduleId  Int?
-  module    Module?        @relation(fields: [moduleId], references: [id])
+  index     Int?
+  cover     String?
+  content   Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  modules  Module[] @relation("ModuleLessons")
 
   userLessonAccesses UserLessonAccess[]
-  categories  Category[] @relation("LessonCategories")
+  categories         Category[]         @relation("LessonCategories")
 
-  @@index([moduleId, index])
+  audios Audio[] @relation("AudioLessons")
+  photos Photo[] @relation("PhotoLessons")
+  videos Video[] @relation("VideoLessons")
+
+  @@index([index])
 }
 
 enum LessonItemType {
@@ -89,58 +95,60 @@ enum LessonItemSource {
 }
 
 model Audio {
-  id          Int      @id @default(autoincrement())
-  title       String
-  url         String
-  publicId    String
-  createdAt   DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  title     String
+  url       String
+  publicId  String
+  createdAt DateTime @default(now())
   // updatedAt DateTime   @updatedAt
-  userId      Int?
-  user        User?    @relation(fields: [userId], references: [id])
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
 
   // Связь с категориями
-  categories  Category[] @relation("AudioCategories")
+  categories Category[] @relation("AudioCategories")
+  lessons    Lesson[]   @relation("AudioLessons")
 }
 
 model Photo {
-  id          Int      @id @default(autoincrement())
-  title       String
-  url         String
-  publicId    String
-  createdAt   DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  title     String
+  url       String
+  publicId  String
+  createdAt DateTime @default(now())
   // updatedAt DateTime   @updatedAt
-  userId      Int?
-  user        User?    @relation(fields: [userId], references: [id])
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
 
-  categories  Category[] @relation("PhotoCategories")
+  categories Category[] @relation("PhotoCategories")
+  lessons    Lesson[]   @relation("PhotoLessons")
 }
 
 model Video {
-  id          Int      @id @default(autoincrement())
-  title       String
-  url         String
-  publicId    String?
-  createdAt   DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  title     String
+  url       String
+  publicId  String?
+  createdAt DateTime @default(now())
   // updatedAt DateTime   @updatedAt
-  userId      Int?
-  user        User?    @relation(fields: [userId], references: [id])
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
 
-  categories  Category[] @relation("VideoCategories")
+  categories Category[] @relation("VideoCategories")
+  lessons    Lesson[]   @relation("VideoLessons")
 }
 
 model Category {
-  id          Int      @id @default(autoincrement())
-  title       String   @unique // обычно название категории уникально
+  id    Int     @id @default(autoincrement())
+  title String  @unique // обычно название категории уникально
   color String? @default("")
 
   // Обратные связи (имена должны совпадать с теми, что в @relation())
-  audios      Audio[]  @relation("AudioCategories")
-  photos      Photo[]  @relation("PhotoCategories")
-  videos      Video[]  @relation("VideoCategories")
+  audios  Audio[]  @relation("AudioCategories")
+  photos  Photo[]  @relation("PhotoCategories")
+  videos  Video[]  @relation("VideoCategories")
   lessons Lesson[] @relation("LessonCategories")
+  modules Module[] @relation("ModuleCategories")
 
-  createdAt   DateTime @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
-

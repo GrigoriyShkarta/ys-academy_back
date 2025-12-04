@@ -30,17 +30,16 @@ export class AuthService {
   }
 
   async login(user: { id: number; email: string; role: string }) {
-    console.log('user', user);
-    const payload = { id: user.id, email: user.email, role: user.role };
+    const payload = { sub: user.id, email: user.email, role: user.role };
 
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
-      expiresIn: '15m', // короткоживущий токен
+      expiresIn: '15m',
     });
 
     const refresh_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: '7d', // живет неделю
+      expiresIn: '7d',
     });
 
     // Сохраняем хэш рефреш токена в БД
@@ -55,11 +54,13 @@ export class AuthService {
 
   async refreshToken(refreshToken: string) {
     try {
-      const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET!,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
       });
 
       const user = await this.prisma.user.findUnique({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access
         where: { id: payload.sub },
       });
 

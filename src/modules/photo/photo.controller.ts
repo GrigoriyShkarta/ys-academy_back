@@ -31,15 +31,32 @@ export class PhotoController {
     @UploadedFile() file: Express.Multer.File,
     @Body('title') title: string,
     @Req() req: RequestWithUser,
+    @Body('categoryIds') categoryIdsRaw?: string,
   ) {
-    return this.photoService.uploadPhoto(file, title, req.user.id);
+    let categoryIds: number[] = [];
+
+    if (categoryIdsRaw) {
+      try {
+        categoryIds = JSON.parse(categoryIdsRaw) as number[];
+      } catch (e) {
+        console.error('JSON parse error for categoryIds:', categoryIdsRaw, e);
+      }
+    }
+
+    return this.photoService.uploadPhoto(file, title, req.user.id, categoryIds);
   }
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  getAllPhotos(@Query('page') page: string, @Query('search') search: string) {
+  getAllPhotos(
+    @Query('page') page: string,
+    @Query('search') search: string,
+    @Query('categories') categories?: string[],
+  ) {
     let pageParam: number | 'all' | undefined;
+
+    console.log('check', categories);
 
     if (page === 'all') {
       pageParam = 'all';
@@ -50,7 +67,20 @@ export class PhotoController {
       pageParam = undefined;
     }
 
-    return this.photoService.getAllAPhoto(pageParam, search || '');
+    let categoriesFormated: string[] = [];
+    if (Number(categories)) {
+      categoriesFormated = [String(categories)];
+    } else {
+      categoriesFormated = categories || [];
+    }
+
+    console.log('categoriesFormated', categoriesFormated);
+
+    return this.photoService.getAllAPhoto(
+      pageParam,
+      search || '',
+      categoriesFormated,
+    );
   }
 
   @Patch(':id')
@@ -60,11 +90,10 @@ export class PhotoController {
   async updatePhoto(
     @Param('id') id: string,
     @Body('title') title: string,
-    @UploadedFile() file?: Express.Multer.File,
     @Body('file') fileUrl?: string,
+    @Body('categoryIds') categoryIds?: string[],
   ) {
-    const fileOrUrl: Express.Multer.File | string | undefined = file ?? fileUrl;
-    return this.photoService.updatePhoto(+id, title, fileOrUrl);
+    return this.photoService.updatePhoto(+id, title, fileUrl, categoryIds);
   }
 
   @Delete()

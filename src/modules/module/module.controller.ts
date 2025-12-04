@@ -46,8 +46,20 @@ export class ModuleController {
 
   @Get()
   @UseGuards(AuthGuard('jwt'))
-  getAllModules(@Query('search') search?: string) {
-    return this.moduleService.getModules({ search: search || '' });
+  getAllModules(
+    @Query('search') search?: string,
+    @Query('categories') categories?: string[],
+  ) {
+    let categoriesFormated: string[] = [];
+    if (Number(categories)) {
+      categoriesFormated = [String(categories)];
+    } else {
+      categoriesFormated = categories || [];
+    }
+    return this.moduleService.getModules({
+      search: search || '',
+      categories: categoriesFormated,
+    });
   }
 
   @Get(':id')

@@ -36,11 +36,11 @@ export class LessonController {
     return this.lessonService.updateLesson(id, body);
   }
 
-  @Delete('/:id')
+  @Delete()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  async deleteLesson(@Param('id') id: number[]) {
-    return this.lessonService.deleteLesson(id);
+  async deleteLesson(@Body('ids') ids: number[]) {
+    return this.lessonService.deleteLesson(ids);
   }
 
   @Get('unassigned')
@@ -58,6 +58,7 @@ export class LessonController {
     @Query('search') search?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
+    @Query('categories') categories?: string[],
   ) {
     let pageParam: number | 'all' | undefined;
 
@@ -74,11 +75,19 @@ export class LessonController {
     const order =
       sortOrder && sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc';
 
+    let categoriesFormated: string[] = [];
+    if (Number(categories)) {
+      categoriesFormated = [String(categories)];
+    } else {
+      categoriesFormated = categories || [];
+    }
+
     return this.lessonService.getAllLessons(
       pageParam,
       search || '',
       sortBy,
       order,
+      categoriesFormated,
     );
   }
 

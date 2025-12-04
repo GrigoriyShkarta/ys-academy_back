@@ -31,9 +31,21 @@ export class AudioController {
   uploadAudio(
     @UploadedFile() file: Express.Multer.File,
     @Body('title') title: string,
+
     @Req() req: RequestWithUser,
+    @Body('categoryIds') categoryIdsRaw?: string,
   ) {
-    return this.audioService.uploadAudio(file, title, req.user.id);
+    let categoryIds: number[] = [];
+
+    if (categoryIdsRaw) {
+      try {
+        categoryIds = JSON.parse(categoryIdsRaw) as number[];
+      } catch (e) {
+        console.error('JSON parse error for categoryIds:', categoryIdsRaw, e);
+      }
+    }
+
+    return this.audioService.uploadAudio(file, title, req.user.id, categoryIds);
   }
 
   @Get()
@@ -44,6 +56,7 @@ export class AudioController {
     @Query('search') search?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
+    @Query('categories') categories?: string[],
   ) {
     let pageParam: number | 'all' | undefined;
 
@@ -56,6 +69,13 @@ export class AudioController {
       pageParam = undefined;
     }
 
+    let categoriesFormated: string[] = [];
+    if (Number(categories)) {
+      categoriesFormated = [String(categories)];
+    } else {
+      categoriesFormated = categories || [];
+    }
+
     // нормализуем sortOrder
     const order =
       sortOrder && sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc';
@@ -65,22 +85,20 @@ export class AudioController {
       search || '',
       sortBy,
       order,
+      categoriesFormated,
     );
   }
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin', 'super_admin')
-  @UseInterceptors(FileInterceptor('file'))
   async updateAudio(
     @Param('id') id: string,
     @Body('title') title: string,
-    @UploadedFile() file?: Express.Multer.File,
     @Body('file') fileUrl?: string,
+    @Body('categoryIds') categoryIds?: string[],
   ) {
-    // fileOrUrl может быть либо File, либо string
-    const fileOrUrl: Express.Multer.File | string | undefined = file ?? fileUrl;
-    return this.audioService.updateAudio(+id, title, fileOrUrl);
+    return this.audioService.updateAudio(+id, title, fileUrl, categoryIds);
   }
 
   @Delete()

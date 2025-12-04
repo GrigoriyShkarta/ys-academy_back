@@ -14,4 +14,8 @@ export class ModuleDto {
     id: number;
     index: number;
   }[];
+
+  @IsArray()
+  @IsOptional()
+  categories?: number[];
 }

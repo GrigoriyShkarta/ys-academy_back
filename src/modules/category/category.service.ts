@@ -5,39 +5,28 @@ import { PrismaService } from '../../prisma.service';
 export class CategoryService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: { title: string; color?: string }[]): Promise<boolean> {
-    // 1. Очищаем и фильтруем входные данные
+  async create(
+    data: { title: string; color?: string }[],
+  ): Promise<{ id: number; title: string; color?: string | null }[]> {
     const cleaned = data
       .map((item) => ({
         title: item.title?.trim(),
-        color: item.color?.trim() || undefined,
+        color: item.color?.trim() || null,
       }))
-      .filter((item) => item.title && item.title.length > 0);
+      .filter((item) => !!item.title && item.title.length > 0);
 
-    if (cleaned.length === 0) {
-      return false;
-    }
+    if (cleaned.length === 0) return [];
 
-    // 2. Убираем дубликаты по title (сохраняя color из первого вхождения)
-    const seen = new Map<string, { title: string; color?: string }>();
-    cleaned.forEach((item) => {
-      if (!seen.has(item.title)) {
-        seen.set(item.title, item);
-      }
-    });
-
-    const uniqueItems = Array.from(seen.values());
-
-    // 3. Создаём в БД
-    await this.prisma.category.createMany({
-      data: uniqueItems.map(({ title, color }) => ({
-        title,
-        color, // если есть color в схеме
-      })),
-      skipDuplicates: true, // работает только если title @unique в Prisma
-    });
-
-    return true;
+    return this.prisma.$transaction(
+      cleaned.map((item) =>
+        this.prisma.category.upsert({
+          where: { title: item.title },
+          update: { color: item.color }, // обновляем цвет, если категория уже была
+          create: { title: item.title, color: item.color },
+          select: { id: true, title: true, color: true },
+        }),
+      ),
+    );
   }
 
   async update(

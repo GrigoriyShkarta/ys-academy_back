@@ -70,4 +70,12 @@ export class CreateLessonDto {
   @IsOptional()
   @IsArray()
   blocks?: any[];
+
+  @IsOptional()
+  @IsArray()
+  categoryIds?: number[];
+
+  @IsOptional()
+  @IsArray()
+  moduleIds?: number[];
 }

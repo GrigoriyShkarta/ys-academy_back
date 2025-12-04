@@ -2,100 +2,96 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { FileService } from '../file/file.service';
 import { ModuleDto } from './dto/module.dto';
-import { Prisma } from 'generated/prisma';
 
 @Injectable()
 export class ModuleService {
   constructor(
     private readonly prisma: PrismaService,
-    private fileService: FileService,
+    private readonly fileService: FileService,
   ) {}
 
+  // ---------------- CREATE MODULE ----------------
   async createModule(data: ModuleDto) {
-    // 1) Создаём модуль без вложенных lessons
     const createdModule = await this.prisma.module.create({
       data: {
         title: data.title,
         url: data.url,
+        categories: data.categories?.length
+          ? {
+              connect: data.categories.map((id) => ({ id: Number(id) })),
+            }
+          : undefined,
+        lessons: data.lessons?.length
+          ? {
+              connect: data.lessons.map((l) => ({ id: l.id })),
+            }
+          : undefined,
       },
     });
 
-    // 2) Если есть уроки — обновляем каждый: ставим moduleId и index
-    if (data.lessons && data.lessons.length) {
-      const updates = data.lessons.map((l) =>
-        this.prisma.lesson.update({
-          where: { id: l.id },
-          data: {
-            moduleId: createdModule.id,
-            index: l.index ?? undefined,
-          },
-        }),
+    // Устанавливаем индексы
+    if (data.lessons?.length) {
+      await this.prisma.$transaction(
+        data.lessons.map((l) =>
+          this.prisma.lesson.update({
+            where: { id: l.id },
+            data: { index: l.index ?? null },
+          }),
+        ),
       );
-      await this.prisma.$transaction(updates);
     }
 
-    // 3) Возвращаем модуль с уроками, отсортированными по index
     return this.prisma.module.findUnique({
       where: { id: createdModule.id },
       include: { lessons: { orderBy: { index: 'asc' } } },
     });
   }
 
-  // typescript
+  // ---------------- UPDATE MODULE ----------------
   async updateModule(data: ModuleDto, id: number) {
-    const module = await this.prisma.module.findUnique({ where: { id } });
+    const module = await this.prisma.module.findUnique({
+      where: { id },
+      include: { lessons: { select: { id: true } } },
+    });
+
     if (!module) throw new Error('Module not found');
 
-    // Обновляем базовые поля модуля
+    // const currentIds = module.lessons.map((l) => l.id);
+    const incomingIds = data.lessons?.map((l) => l.id) ?? [];
+
+    // --- Обновляем базовые поля ---
     await this.prisma.module.update({
       where: { id },
       data: {
         title: data.title ?? undefined,
         url: data.url ?? undefined,
+        categories: {
+          set: [],
+          ...(data.categories?.length
+            ? {
+                connect: data.categories.map((cId) => ({
+                  id: Number(cId),
+                })),
+              }
+            : {}),
+        },
+        lessons: {
+          set: incomingIds.map((lessonId) => ({ id: lessonId })),
+        },
       },
     });
 
-    // Если lessons не переданы — ничего с ними не делаем
-    if (data.lessons === undefined) {
-      return this.prisma.module.findUnique({
-        where: { id },
-        include: { lessons: { orderBy: { index: 'asc' } } },
-      });
-    }
-
-    // Получаем текущие уроки модуля
-    const currentLessons = await this.prisma.lesson.findMany({
-      where: { moduleId: id },
-      select: { id: true },
-    });
-    const currentIds = currentLessons.map((l) => l.id);
-    const incomingIds = data.lessons.map((l) => l.id);
-
-    // Уроки, которые нужно отвязать
-    const toUnassign = currentIds.filter((cid) => !incomingIds.includes(cid));
-
-    // Операции: привязать/обновить входящие уроки
-    const ops: Prisma.PrismaPromise<any>[] = data.lessons.map((l) =>
-      this.prisma.lesson.update({
-        where: { id: l.id },
-        data: {
-          moduleId: id,
-          index: l.index ?? undefined,
-        },
-      }),
-    );
-
-    // Если есть уроки для отвязки — добавляем updateMany
-    if (toUnassign.length) {
-      ops.push(
-        this.prisma.lesson.updateMany({
-          where: { id: { in: toUnassign } },
-          data: { moduleId: null, index: null },
-        }),
+    // --- Обновляем INDEX у уроков ---
+    if (data.lessons?.length) {
+      await this.prisma.$transaction(
+        data.lessons.map((l) =>
+          this.prisma.lesson.update({
+            where: { id: l.id },
+            data: { index: l.index ?? null },
+          }),
+        ),
       );
     }
-
-    if (ops.length) await this.prisma.$transaction(ops);
 
     return this.prisma.module.findUnique({
       where: { id },
@@ -103,6 +99,7 @@ export class ModuleService {
     });
   }
 
+  // ---------------- DELETE ----------------
   async deleteModule(id: number) {
     const module = await this.prisma.module.findUnique({ where: { id } });
     if (!module) throw new Error('Module not found');
@@ -110,32 +107,47 @@ export class ModuleService {
     await this.prisma.module.delete({ where: { id } });
   }
 
-  async getModules(params: { search: string }) {
-    const { search } = params;
+  // ---------------- LIST MODULES ----------------
+  async getModules(params: { search?: string; categories?: string[] }) {
+    const { search, categories } = params;
 
-    const where: Prisma.ModuleWhereInput = {
-      ...(search && { title: { contains: search, mode: 'insensitive' } }),
+    const where: any = {
+      ...(search && {
+        title: { contains: search, mode: 'insensitive' },
+      }),
+      ...(categories?.length
+        ? {
+            categories: {
+              some: { id: { in: categories.map((id) => Number(id)) } },
+            },
+          }
+        : {}),
     };
 
     return this.prisma.module.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       where,
-      include: { lessons: true },
+      include: {
+        lessons: true,
+        categories: { select: { id: true, title: true, color: true } },
+      },
     });
   }
 
+  // ---------------- GET MODULE WITH ACCESS ----------------
   async getModule(id: number, userId: number, role: string) {
     const module = await this.prisma.module.findUnique({
       where: { id },
-      include: { lessons: { orderBy: { index: 'asc' } } },
+      include: {
+        lessons: { orderBy: { index: 'asc' } },
+        categories: { select: { id: true, title: true, color: true } },
+      },
     });
-    if (!module) throw new Error('Module not found');
 
-    // Если userId не передан — возвращаем модуль как есть
-    if (!userId) return module;
+    if (!module) throw new Error('Module not found');
 
     const lessonIds = module.lessons.map((l) => l.id);
 
-    // Получаем доступы пользователя только для уроков этого модуля
     const accesses = await this.prisma.userLessonAccess.findMany({
       where: { userId, lessonId: { in: lessonIds } },
       select: { lessonId: true, blocks: true },
@@ -144,17 +156,13 @@ export class ModuleService {
     const accessMap = new Map<number, number[]>();
     accesses.forEach((a) => accessMap.set(a.lessonId, a.blocks));
 
-    const lessonsWithAccess = module.lessons.map((l) => {
-      const blocks = accessMap.get(l.id); // может быть undefined или массив id блоков
-
-      return {
-        ...l,
-        access:
-          role === 'admin' ||
-          role === 'super_admin' ||
-          (blocks && blocks?.length > 0),
-      };
-    });
+    const lessonsWithAccess = module.lessons.map((l) => ({
+      ...l,
+      access:
+        role === 'admin' ||
+        role === 'super_admin' ||
+        (accessMap.get(l.id)?.length ?? 0) > 0,
+    }));
 
     return { ...module, lessons: lessonsWithAccess };
   }
