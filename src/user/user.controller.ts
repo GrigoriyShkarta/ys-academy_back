@@ -47,7 +47,7 @@ export class UserController {
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
-  getStudent(@Param('id') id: number) {
-    return this.userService.getStudentById(id);
+  getStudent(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.userService.getStudentById(Number(id), req.user.role);
   }
 }

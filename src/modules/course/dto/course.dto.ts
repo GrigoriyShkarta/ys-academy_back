@@ -1,0 +1,21 @@
+import { IsArray, IsOptional, IsString } from 'class-validator';
+
+export class CourseDto {
+  @IsString()
+  title: string;
+
+  @IsString()
+  @IsOptional()
+  url?: string;
+
+  @IsArray()
+  @IsOptional()
+  categories?: number[];
+
+  @IsArray()
+  @IsOptional()
+  modules?: {
+    id: number;
+    index: number;
+  }[];
+}

@@ -16,63 +16,91 @@ export class UserService {
     });
   }
 
-  async getStudentById(id: number) {
+  async getStudentById(id: number, role: string) {
     const student = await this.prisma.user.findUnique({
       where: { id },
-      select: studentSelect,
+      include: {
+        userLessonAccesses: true,
+      },
     });
 
     if (!student) return null;
 
-    const modules = await this.prisma.module.findMany({
+    // Загружаем курсы со всеми модулями и уроками
+    const courses = await this.prisma.course.findMany({
       include: {
-        lessons: {
+        modules: {
           include: {
-            userLessonAccesses: {
-              where: { userId: id },
-              select: { id: true },
+            moduleLessons: {
+              orderBy: { order: 'asc' },
+              include: {
+                lesson: true,
+              },
             },
           },
-          orderBy: { index: 'asc' },
         },
       },
-      orderBy: { createdAt: 'asc' },
     });
 
-    const modulesWithAccess = modules.map((m) => ({
-      ...m,
-      lessons: m.lessons.map((l) => {
-        const totalBlocks = Array.isArray(l.content) ? l.content.length : 0;
+    const coursesWithAccess = courses.map((course) => {
+      let hasCourseAccess = false;
 
-        const accessRecord =
-          Array.isArray(student.userLessonAccesses) &&
-          student.userLessonAccesses.length > 0
-            ? (student.userLessonAccesses.find((a) => a.lessonId === l.id) ??
-              null)
-            : null;
+      let totalLessons = 0;
+      let lessonsWithAccess = 0;
 
-        const availableBlocks =
-          accessRecord && Array.isArray(accessRecord.blocks)
-            ? accessRecord.blocks.length
-            : 0;
+      const modules = course.modules.map((module) => {
+        const lessons = module.moduleLessons.map((ml) => {
+          const lesson = ml.lesson;
+          totalLessons++;
 
-        const availableBlockIds = student.userLessonAccesses.find(
-          (lesson) => lesson.lessonId === l.id,
-        )?.blocks;
+          const accessRecord = student.userLessonAccesses.find(
+            (a) => a.lessonId === lesson.id,
+          );
+
+          const availableBlocks = accessRecord?.blocks?.length ?? 0;
+          const hasAccess = availableBlocks > 0;
+
+          if (hasAccess) {
+            hasCourseAccess = true;
+            lessonsWithAccess++;
+          }
+
+          return {
+            id: lesson.id,
+            title: lesson.title,
+            access: hasAccess,
+            access_blocks: accessRecord?.blocks ?? [],
+          };
+        });
 
         return {
-          id: l.id,
-          title: l.title,
-          access: availableBlocks > 0,
-          access_blocks: availableBlockIds ?? [],
-          blocks: `${availableBlocks}/${totalBlocks}`,
+          id: module.id,
+          title: module.title,
+          lessons,
         };
-      }),
-    }));
+      });
+
+      // super_admin → всегда 100%
+      const progress =
+        role === 'super_admin'
+          ? 100
+          : totalLessons === 0
+            ? 0
+            : Math.round((lessonsWithAccess / totalLessons) * 100);
+
+      return {
+        id: course.id,
+        title: course.title,
+        url: course.url,
+        access: role === 'super_admin' ? true : hasCourseAccess,
+        progress, // <-- добавлено новое поле
+        modules,
+      };
+    });
 
     return {
       ...student,
-      modules: modulesWithAccess,
+      courses: coursesWithAccess,
     };
   }
 

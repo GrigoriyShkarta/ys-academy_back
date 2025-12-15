@@ -10,6 +10,7 @@ import { VideoModule } from './modules/video/video.module';
 import { LessonModule } from './modules/lesson/lesson.module';
 import { ModuleModule } from './modules/module/module.module';
 import { CategoryModule } from './modules/category/category.module';
+import { CourseModule } from './modules/course/course.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CategoryModule } from './modules/category/category.module';
     LessonModule,
     ModuleModule,
     CategoryModule,
+    CourseModule,
   ],
   controllers: [AppController],
   providers: [AppService],

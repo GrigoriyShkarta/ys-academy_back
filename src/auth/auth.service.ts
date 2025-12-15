@@ -4,12 +4,6 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service';
 import { RegisterDto } from './dto/register.dto';
 
-interface JwtPayload {
-  sub: number;
-  email: string;
-  role: string;
-}
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -30,7 +24,12 @@ export class AuthService {
   }
 
   async login(user: { id: number; email: string; role: string }) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      id: user.id,
+    };
 
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
@@ -49,7 +48,7 @@ export class AuthService {
       data: { refreshToken: hashedRefresh },
     });
 
-    return { access_token, refresh_token };
+    return { access_token, refresh_token, role: user.role };
   }
 
   async refreshToken(refreshToken: string) {

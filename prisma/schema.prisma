@@ -59,17 +59,29 @@ model Module {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   categories  Category[] @relation("ModuleCategories")
+  courses  Course[] @relation("CourseModules")
+
+  moduleLessons ModuleLesson[]
+}
+
+model Course {
+  id Int @id @default(autoincrement())
+  url String?
+  title String
+  categories  Category[] @relation("CourseCategories")
+  modules Module[] @relation("CourseModules")
 }
 
 model Lesson {
   id        Int      @id @default(autoincrement())
   title     String
-  index     Int?
   cover     String?
   content   Json     @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   modules  Module[] @relation("ModuleLessons")
+
+  moduleLessons ModuleLesson[]
 
   userLessonAccesses UserLessonAccess[]
   categories         Category[]         @relation("LessonCategories")
@@ -77,9 +89,23 @@ model Lesson {
   audios Audio[] @relation("AudioLessons")
   photos Photo[] @relation("PhotoLessons")
   videos Video[] @relation("VideoLessons")
-
-  @@index([index])
 }
+
+model ModuleLesson {
+  id       Int @id @default(autoincrement())
+
+  moduleId Int
+  lessonId Int
+
+  order    Int
+
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([moduleId, lessonId])
+  @@index([moduleId, order])
+}
+
 
 enum LessonItemType {
   text
@@ -148,6 +174,7 @@ model Category {
   videos  Video[]  @relation("VideoCategories")
   lessons Lesson[] @relation("LessonCategories")
   modules Module[] @relation("ModuleCategories")
+  courses Course[] @relation("CourseCategories")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

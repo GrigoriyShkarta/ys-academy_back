@@ -194,6 +194,27 @@ export class LessonService {
   async createLesson(dto: CreateLessonDto) {
     const content = await this.resolveMediaLinksInContent(dto.blocks || []);
 
+    const moduleIds = dto.moduleIds?.map(Number) ?? [];
+
+    // 1️⃣ Получаем последние order для каждого модуля
+    const lastOrders = moduleIds.length
+      ? await this.prisma.moduleLesson.groupBy({
+          by: ['moduleId'],
+          where: {
+            moduleId: { in: moduleIds },
+          },
+          _max: {
+            order: true,
+          },
+        })
+      : [];
+
+    const orderMap = new Map<number, number>();
+    lastOrders.forEach((row) => {
+      orderMap.set(row.moduleId, row._max.order ?? -1);
+    });
+
+    // 2️⃣ Создаём урок + связи
     const created = await this.prisma.lesson.create({
       data: {
         title: dto.title,
@@ -204,14 +225,19 @@ export class LessonService {
               connect: dto.categoryIds.map((id) => ({ id: +id })),
             }
           : undefined,
-        modules: dto.moduleIds?.length
+
+        moduleLessons: moduleIds.length
           ? {
-              connect: dto.moduleIds.map((id) => ({ id: +id })),
+              create: moduleIds.map((moduleId) => ({
+                module: { connect: { id: moduleId } },
+                order: (orderMap.get(moduleId) ?? -1) + 1,
+              })),
             }
           : undefined,
       },
     });
 
+    // остальная логика без изменений
     const audioIds = collectAudioIds(dto.blocks || []);
     const photoIds = collectPhotoIds(dto.blocks || []);
     const videoIds = collectVideoIds(dto.blocks || []);
@@ -300,8 +326,6 @@ export class LessonService {
     const isAll = page === 'all';
     const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
 
-    console.log('categories', categories);
-
     const where =
       search || categories
         ? {
@@ -322,8 +346,6 @@ export class LessonService {
               : {}),
           }
         : {};
-
-    console.log('where', where);
 
     const totalCount = await this.prisma.lesson.count({ where });
 
@@ -423,8 +445,8 @@ export class LessonService {
     }));
   }
 
-  async getLesson(id: number) {
-    return this.prisma.lesson.findUnique({
+  async getLesson(id: number, userId: number, role: string) {
+    const lesson = await this.prisma.lesson.findUnique({
       where: { id },
       select: {
         id: true,
@@ -446,30 +468,80 @@ export class LessonService {
         },
       },
     });
+
+    if (!lesson) {
+      throw new Error('Lesson not found');
+    }
+
+    // super_admin — полный доступ
+    if (role === 'super_admin') {
+      return lesson;
+    }
+
+    const access = await this.prisma.userLessonAccess.findFirst({
+      where: {
+        userId,
+        lessonId: id,
+      },
+      select: { blocks: true },
+    });
+
+    if (!access) {
+      return {
+        ...lesson,
+        content: [],
+      };
+    }
+
+    const allowedBlocks = access.blocks ?? [];
+
+    // Явно приводим content к типу массива объектов
+    const contentArray = Array.isArray(lesson.content)
+      ? (lesson.content as Array<Record<string, any>>)
+      : [];
+
+    const filteredContent = contentArray.filter(
+      (block) =>
+        block &&
+        typeof block === 'object' &&
+        'blockId' in block &&
+        allowedBlocks.includes(block.blockId),
+    );
+
+    return {
+      ...lesson,
+      content: filteredContent,
+    };
   }
 
   async grantLessonsAccess(
     studentIds: number[],
-    lessons: { id: number; blocks?: number[] }[],
+    lessons: { id: number; remove?: boolean; blocks?: number[] }[],
+    replaceAll = false,
   ) {
-    // проверяем пользователей
+    // 1. Проверяем существование пользователей
     const users = await this.prisma.user.findMany({
       where: { id: { in: studentIds } },
       select: { id: true },
     });
-    if (users.length !== studentIds.length)
-      throw new BadRequestException('Some users not found');
 
-    // подгружаем уроки и нормализуем content в { blockId: number }[]
+    if (users.length !== studentIds.length) {
+      throw new BadRequestException('Some users not found');
+    }
+
+    // 2. Загружаем уроки и нормализуем content → blockId[]
     const lessonIds = lessons.map((l) => +l.id);
+
     const lessonRecords = await this.prisma.lesson.findMany({
       where: { id: { in: lessonIds } },
       select: { id: true, content: true },
     });
 
     const lessonMap = new Map<number, { blockId: number }[]>();
+
     for (const lr of lessonRecords) {
       const raw = Array.isArray(lr.content) ? lr.content : [];
+
       const normalized = (raw as Prisma.JsonValue[])
         .filter(
           (it): it is Prisma.JsonObject =>
@@ -478,12 +550,13 @@ export class LessonService {
         .map((obj) => {
           const bid = obj['blockId'];
           let n = NaN;
-          if (typeof bid === 'number') {
-            n = bid;
-          } else if (typeof bid === 'string' && bid.trim() !== '') {
+
+          if (typeof bid === 'number') n = bid;
+          else if (typeof bid === 'string' && bid.trim() !== '') {
             const parsed = Number(bid);
             if (!Number.isNaN(parsed)) n = parsed;
           }
+
           return Number.isFinite(n) ? { blockId: n } : null;
         })
         .filter((x): x is { blockId: number } => x !== null);
@@ -491,17 +564,36 @@ export class LessonService {
       lessonMap.set(lr.id, normalized);
     }
 
-    // собираем записи для createMany
+    // 3. Обрабатываем payload
     const data: Prisma.UserLessonAccessCreateManyInput[] = [];
 
-    for (const u of users) {
+    for (const user of users) {
       for (const payload of lessons) {
-        const lessonContent = lessonMap.get(+payload.id);
-        if (!lessonContent) continue; // урок не найден — пропускаем
+        const lessonId = +payload.id;
+
+        // 3.1. Если стоит remove: true → удаляем доступ и пропускаем создание
+        if (payload.remove === true) {
+          await this.prisma.userLessonAccess.deleteMany({
+            where: { userId: user.id, lessonId },
+          });
+          continue;
+        }
+
+        // 3.2. Даем доступ (частично или полностью)
+        const lessonContent = lessonMap.get(lessonId);
+        if (!lessonContent) continue;
 
         const availableBlockIds = lessonContent.map((b) => +b.blockId);
+
         let blocksToStore: number[] = [];
-        if (payload.blocks && payload.blocks.length) {
+
+        if (Array.isArray(payload.blocks)) {
+          if (payload.blocks.length === 0) {
+            // пустой массив blocks теперь НЕ означает удаление
+            // потому что delete делаем только через remove:true
+            continue;
+          }
+
           const valid = Array.from(
             new Set(
               payload.blocks
@@ -509,33 +601,49 @@ export class LessonService {
                 .filter((b) => availableBlockIds.includes(b)),
             ),
           );
-          if (!valid.length) continue; // нет валидных блоков — пропускаем
+
+          if (!valid.length) continue;
+
           blocksToStore = valid;
         } else {
-          // нет переданных blockIds — даём доступ ко всему уроку:
-          // сохраняем в базу все id блоков урока
+          // blocks не переданы → даём полный доступ
           blocksToStore = [...availableBlockIds];
         }
 
         data.push({
-          userId: u.id,
-          lessonId: +payload.id,
+          userId: user.id,
+          lessonId,
           blocks: blocksToStore,
-        } as Prisma.UserLessonAccessCreateManyInput);
+        });
       }
     }
 
-    // удаляем текущие доступы у указанных студентов
-    // только для уроков, которые передаются в payload (lessonIds)
-    if (lessonIds.length) {
+    // 4. Если replaceAll = true → удаляем ВСЕ доступы студентов, но только для lessonIds
+    if (replaceAll && lessonIds.length) {
       await this.prisma.userLessonAccess.deleteMany({
         where: {
           userId: { in: studentIds },
           lessonId: { in: lessonIds },
         },
       });
+    } else {
+      // если replaceAll = false, удяляем только конкретные уроки из payload,
+      // но только если remove != true
+      const idsToDelete = lessons
+        .filter((l) => l.remove !== true)
+        .map((l) => +l.id);
+
+      if (idsToDelete.length) {
+        await this.prisma.userLessonAccess.deleteMany({
+          where: {
+            userId: { in: studentIds },
+            lessonId: { in: idsToDelete },
+          },
+        });
+      }
     }
 
+    // 5. Создаем новые доступы
     if (data.length) {
       await this.prisma.userLessonAccess.createMany({
         data,

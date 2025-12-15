@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { LessonService } from './lesson.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
+import { RequestWithUser } from '../../common/types/request-with-user.interface';
 
 @Controller('lesson')
 export class LessonController {
@@ -93,8 +95,8 @@ export class LessonController {
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
-  getLessonById(@Param('id') id: number) {
-    return this.lessonService.getLesson(id);
+  getLessonById(@Param('id') id: number, @Req() req: RequestWithUser) {
+    return this.lessonService.getLesson(id, req.user.id, req.user.role);
   }
 
   @Post('assign')
@@ -105,8 +107,13 @@ export class LessonController {
     body: {
       lessonIds: { id: number; blocks?: number[] }[];
       userIds: number[];
+      replaceAll?: boolean;
     },
   ) {
-    return this.lessonService.grantLessonsAccess(body.userIds, body.lessonIds);
+    return this.lessonService.grantLessonsAccess(
+      body.userIds,
+      body.lessonIds,
+      body.replaceAll,
+    );
   }
 }
