@@ -9,8 +9,8 @@ import { PhotoModule } from './modules/photo/photo.module';
 import { VideoModule } from './modules/video/video.module';
 import { LessonModule } from './modules/lesson/lesson.module';
 import { ModuleModule } from './modules/module/module.module';
-import { CategoryModule } from './modules/category/category.module';
 import { CourseModule } from './modules/course/course.module';
+import { CategoryModule } from './modules/category/category.module';
 
 @Module({
   imports: [
