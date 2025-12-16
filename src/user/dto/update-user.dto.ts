@@ -15,6 +15,10 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
   telegram?: string;
 
   @IsOptional()

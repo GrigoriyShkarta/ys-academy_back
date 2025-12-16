@@ -11,10 +11,17 @@ type FileType = 'image' | 'video' | 'raw';
 
 @Injectable()
 export class FileService {
-  async uploadFile(file: Express.Multer.File, type: FileType) {
+  async uploadFile(
+    file: Express.Multer.File,
+    type: FileType,
+    isOther?: boolean,
+  ) {
     return new Promise<UploadApiResponse>((resolve, reject) => {
       const upload = cloudinary.uploader.upload_stream(
-        { resource_type: type, folder: `ys_academy/${type}s` },
+        {
+          resource_type: type,
+          folder: `ys_academy/${isOther ? `other/${type}s` : `${type}s`}`,
+        },
         (error, result) => {
           if (error) return reject(new BadRequestException(error.message));
           if (!result)

@@ -25,6 +25,8 @@ model User {
   email                String   @unique
   name                 String
   photo String?
+  photoId String?
+  city String?
   telegram String?
   instagram String?
   birthDate DateTime?

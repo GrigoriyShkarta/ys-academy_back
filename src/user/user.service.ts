@@ -1,14 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { studentSelect, userSelect } from './select/user.select';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from 'generated/prisma';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { FileService } from '../modules/file/file.service';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private fileService: FileService,
+  ) {}
 
   async findById(id: number) {
     return this.prisma.user.findUnique({
@@ -20,9 +24,7 @@ export class UserService {
   async getStudentById(id: number, role: string) {
     const student = await this.prisma.user.findUnique({
       where: { id },
-      include: {
-        userLessonAccesses: true,
-      },
+      select: studentSelect,
     });
 
     if (!student) return null;
@@ -157,27 +159,33 @@ export class UserService {
     return true;
   }
 
-  async updateUser(userId: number, dto: UpdateUserDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+  async updateUser(
+    userId: number,
+    dto: UpdateUserDto,
+    photo?: Express.Multer.File,
+  ) {
+    let photoUrl: string | undefined;
+    let photoPublicId: string | undefined;
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (photo) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+      if (user?.photoId) {
+        await this.fileService.deleteFile(user.photoId, 'image');
+      }
+
+      const uploaded = await this.fileService.uploadFile(photo, 'image', true);
+      photoUrl = uploaded.url;
+      photoPublicId = uploaded.public_id;
     }
 
     return this.prisma.user.update({
       where: { id: userId },
       data: {
-        email: dto.email,
-        name: dto.name,
-        photo: dto.photo,
-        telegram: dto.telegram,
-        instagram: dto.instagram,
+        ...dto,
         birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
-        musicLevel: dto.musicLevel,
-        vocalExperience: dto.vocalExperience,
-        goals: dto.goals,
+        photo: photoUrl,
+        photoId: photoPublicId,
       },
     });
   }

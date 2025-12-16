@@ -9,5 +9,13 @@ export const studentSelect = {
   id: true,
   name: true,
   email: true,
+  city: true,
   userLessonAccesses: true,
+  photo: true,
+  telegram: true,
+  instagram: true,
+  birthDate: true,
+  musicLevel: true,
+  vocalExperience: true,
+  goals: true,
 };
