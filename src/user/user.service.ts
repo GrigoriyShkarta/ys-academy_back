@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { studentSelect, userSelect } from './select/user.select';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from 'generated/prisma';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UserService {
@@ -81,18 +82,13 @@ export class UserService {
       });
 
       // super_admin → всегда 100%
-      const progress =
-        role === 'super_admin'
-          ? 100
-          : totalLessons === 0
-            ? 0
-            : Math.round((lessonsWithAccess / totalLessons) * 100);
+      const progress = Math.round((lessonsWithAccess / totalLessons) * 100);
 
       return {
         id: course.id,
         title: course.title,
         url: course.url,
-        access: role === 'super_admin' ? true : hasCourseAccess,
+        access: hasCourseAccess,
         progress, // <-- добавлено новое поле
         modules,
       };
@@ -159,5 +155,30 @@ export class UserService {
       },
     });
     return true;
+  }
+
+  async updateUser(userId: number, dto: UpdateUserDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: dto.email,
+        name: dto.name,
+        photo: dto.photo,
+        telegram: dto.telegram,
+        instagram: dto.instagram,
+        birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
+        musicLevel: dto.musicLevel,
+        vocalExperience: dto.vocalExperience,
+        goals: dto.goals,
+      },
+    });
   }
 }

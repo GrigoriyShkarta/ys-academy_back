@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -14,6 +15,7 @@ import { RequestWithUser } from '../common/types/request-with-user.interface';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('user')
 export class UserController {
@@ -49,5 +51,11 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   getStudent(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.userService.getStudentById(Number(id), req.user.role);
+  }
+
+  @Put(':id')
+  @UseGuards(AuthGuard('jwt'))
+  updateStudent(@Param('id') id: string, @Body() body: UpdateUserDto) {
+    return this.userService.updateUser(+id, body);
   }
 }

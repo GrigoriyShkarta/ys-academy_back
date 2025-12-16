@@ -24,6 +24,13 @@ model User {
   id                   Int      @id @default(autoincrement())
   email                String   @unique
   name                 String
+  photo String?
+  telegram String?
+  instagram String?
+  birthDate DateTime?
+  musicLevel String?
+  vocalExperience String?
+  goals String?
   password             String
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
