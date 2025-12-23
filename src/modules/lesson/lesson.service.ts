@@ -369,10 +369,14 @@ export class LessonService {
             color: true,
           },
         },
-        modules: {
+        moduleLessons: {
           select: {
-            id: true,
-            title: true,
+            module: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
           },
         },
         // добавляй другие поля по необходимости
@@ -380,10 +384,16 @@ export class LessonService {
       ...(isAll ? {} : { skip, take }),
     });
 
+    const lessonsWithModules = lessons.map((lesson) => ({
+      ...lesson,
+      modules: lesson.moduleLessons.map((ml) => ml.module),
+      moduleLessons: undefined, // удаляем старое поле, если не нужно
+    }));
+
     const totalPages = isAll ? 1 : Math.ceil(totalCount / take);
 
     return {
-      data: lessons,
+      data: lessonsWithModules,
       meta: {
         currentPage: isAll ? 'all' : Number(page),
         totalPages,

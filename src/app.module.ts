@@ -11,6 +11,7 @@ import { LessonModule } from './modules/lesson/lesson.module';
 import { ModuleModule } from './modules/module/module.module';
 import { CourseModule } from './modules/course/course.module';
 import { CategoryModule } from './modules/category/category.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CategoryModule } from './modules/category/category.module';
     ModuleModule,
     CategoryModule,
     CourseModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

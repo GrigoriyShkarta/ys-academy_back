@@ -20,31 +20,38 @@ enum Role {
   super_admin
 }
 
+enum PaymentStatus {
+  paid
+  partial_paid
+  unpaid
+}
+
 model User {
-  id                   Int      @id @default(autoincrement())
-  email                String   @unique
+  id                   Int       @id @default(autoincrement())
+  email                String    @unique
   name                 String
-  photo String?
-  photoId String?
-  city String?
-  telegram String?
-  instagram String?
-  birthDate DateTime?
-  musicLevel String?
-  vocalExperience String?
-  goals String?
+  photo                String?
+  photoId              String?
+  city                 String?
+  telegram             String?
+  instagram            String?
+  birthDate            DateTime?
+  musicLevel           String?
+  vocalExperience      String?
+  goals                String?
   password             String
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  role                 Role     @default(student)
-  refreshToken         String?  @map("refresh_token")
-  previousRefreshToken String?  @map("previous_refresh_token")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  role                 Role      @default(student)
+  refreshToken         String?   @map("refresh_token")
+  previousRefreshToken String?   @map("previous_refresh_token")
 
   Audio Audio[]
   Photo Photo[]
   Video Video[]
 
   userLessonAccesses UserLessonAccess[]
+  subscriptions UserSubscription[]
 }
 
 model UserLessonAccess {
@@ -64,21 +71,21 @@ model Module {
   title       String
   publicImgId String?
   url         String?
-  lessons  Lesson[] @relation("ModuleLessons")
+  lessons     Lesson[]   @relation("ModuleLessons")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   categories  Category[] @relation("ModuleCategories")
-  courses  Course[] @relation("CourseModules")
+  courses     Course[]   @relation("CourseModules")
 
   moduleLessons ModuleLesson[]
 }
 
 model Course {
-  id Int @id @default(autoincrement())
-  url String?
-  title String
-  categories  Category[] @relation("CourseCategories")
-  modules Module[] @relation("CourseModules")
+  id         Int        @id @default(autoincrement())
+  url        String?
+  title      String
+  categories Category[] @relation("CourseCategories")
+  modules    Module[]   @relation("CourseModules")
 }
 
 model Lesson {
@@ -88,7 +95,7 @@ model Lesson {
   content   Json     @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  modules  Module[] @relation("ModuleLessons")
+  modules   Module[] @relation("ModuleLessons")
 
   moduleLessons ModuleLesson[]
 
@@ -101,20 +108,19 @@ model Lesson {
 }
 
 model ModuleLesson {
-  id       Int @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   moduleId Int
   lessonId Int
 
-  order    Int
+  order Int
 
-  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([moduleId, lessonId])
   @@index([moduleId, order])
 }
-
 
 enum LessonItemType {
   text
@@ -187,4 +193,65 @@ model Category {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model UserSubscription {
+  id            Int           @id @default(autoincrement())
+  userId     Int
+  subscriptionId   Int
+  paymentStatus String @default("unpaid")
+  amount Int?
+
+  // Даты и время уроков (по одному на урок)
+  lessonDates   DateTime[]    // массив ISO строк с датой и временем
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Связи
+  student       User          @relation(fields: [userId], references: [id])
+  subscription     Subscription     @relation(fields: [subscriptionId], references: [id])
+  lessons          UserLesson[]
+
+  @@index([userId])
+  @@index([subscriptionId])
+}
+
+enum LessonStatus {
+  PENDING      // Не проведён (по умолчанию)
+  COMPLETED    // Проведён
+  EXPIRED      // Сгорел
+  TRANSFERRED  // Перенесён (уже перенесён на другую дату)
+  TRANSFER_REQUEST // Запрос на перенос
+}
+
+model UserLesson {
+  id                   Int          @id @default(autoincrement())
+  userSubscriptionId   Int
+
+  scheduledAt          DateTime     // Запланированная дата и время урока
+  status               String @default("pending")
+
+  completedAt          DateTime?    // Когда урок был проведён (если COMPLETED)
+  transferredTo        DateTime?    // Новая дата, если был перенесён
+
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  // Связь с подпиской студента
+  userSubscription     UserSubscription @relation(fields: [userSubscriptionId], references: [id])
+
+  @@index([userSubscriptionId])
+  @@index([scheduledAt])
+}
+
+model Subscription {
+  id            Int      @id @default(autoincrement())
+  title         String   @unique
+  price         Int
+  lessons_count Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userSubsriptions UserSubscription[]
 }

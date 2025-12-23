@@ -14,6 +14,11 @@ export class UserService {
     private fileService: FileService,
   ) {}
 
+  isLessonCompleted(scheduledAt: Date, now: Date) {
+    const completedAfter = new Date(scheduledAt.getTime() + 30 * 60 * 1000);
+    return now >= completedAfter;
+  }
+
   async findById(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
@@ -28,6 +33,42 @@ export class UserService {
     });
 
     if (!student) return null;
+
+    const now = new Date();
+
+    const lessonsToComplete = student.subscriptions
+      .flatMap((sub) => sub.lessons)
+      .filter(
+        (lesson) =>
+          lesson.status === 'pending' &&
+          this.isLessonCompleted(new Date(lesson.scheduledAt), now),
+      );
+
+    if (lessonsToComplete.length > 0) {
+      await this.prisma.$transaction(
+        lessonsToComplete.map((lesson) =>
+          this.prisma.userLesson.update({
+            where: { id: lesson.id },
+            data: {
+              status: 'completed',
+              completedAt: now,
+            },
+          }),
+        ),
+      );
+    }
+
+    const updatedStudent = await this.prisma.user.findUnique({
+      where: { id },
+      select: studentSelect,
+    });
+
+    updatedStudent?.subscriptions.forEach((sub) => {
+      sub.lessons.sort(
+        (a, b) =>
+          new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+      );
+    });
 
     // Загружаем курсы со всеми модулями и уроками
     const courses = await this.prisma.course.findMany({
@@ -97,7 +138,7 @@ export class UserService {
     });
 
     return {
-      ...student,
+      ...updatedStudent,
       courses: coursesWithAccess,
     };
   }

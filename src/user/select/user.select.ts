@@ -18,4 +18,27 @@ export const studentSelect = {
   musicLevel: true,
   vocalExperience: true,
   goals: true,
+
+  subscriptions: {
+    select: {
+      id: true,
+      paymentStatus: true,
+      amount: true,
+      subscription: {
+        select: {
+          id: true,
+          title: true,
+          lessons_count: true,
+          price: true,
+        },
+      },
+      lessons: {
+        select: {
+          id: true,
+          scheduledAt: true,
+          status: true,
+        },
+      },
+    },
+  },
 };
