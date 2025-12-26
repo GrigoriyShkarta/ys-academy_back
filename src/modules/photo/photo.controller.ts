@@ -56,8 +56,6 @@ export class PhotoController {
   ) {
     let pageParam: number | 'all' | undefined;
 
-    console.log('check', categories);
-
     if (page === 'all') {
       pageParam = 'all';
     } else if (page) {
@@ -73,8 +71,6 @@ export class PhotoController {
     } else {
       categoriesFormated = categories || [];
     }
-
-    console.log('categoriesFormated', categoriesFormated);
 
     return this.photoService.getAllAPhoto(
       pageParam,
