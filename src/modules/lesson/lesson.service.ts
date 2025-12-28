@@ -309,7 +309,7 @@ export class LessonService {
     const lesson = await this.prisma.lesson.findMany({
       where: { id: { in: formatedIds } },
     });
-    if (!lesson) throw new BadRequestException('Lesson not found');
+    if (!lesson.length) throw new BadRequestException('Lesson not found');
 
     await this.prisma.lesson.deleteMany({ where: { id: { in: formatedIds } } });
     return { success: true };

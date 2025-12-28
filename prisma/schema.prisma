@@ -51,7 +51,7 @@ model User {
   Video Video[]
 
   userLessonAccesses UserLessonAccess[]
-  subscriptions UserSubscription[]
+  subscriptions      UserSubscription[]
 }
 
 model UserLessonAccess {
@@ -60,8 +60,8 @@ model UserLessonAccess {
   lessonId  Int
   blocks    Int[]    @default([])
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([userId, lessonId])
 }
@@ -196,50 +196,50 @@ model Category {
 }
 
 model UserSubscription {
-  id            Int           @id @default(autoincrement())
-  userId     Int
-  subscriptionId   Int
-  paymentStatus String @default("unpaid")
-  amount Int?
+  id             Int    @id @default(autoincrement())
+  userId         Int
+  subscriptionId Int
+  paymentStatus  String @default("unpaid")
+  amount         Int?
 
   // Даты и время уроков (по одному на урок)
-  lessonDates   DateTime[]    // массив ISO строк с датой и временем
+  lessonDates DateTime[] // массив ISO строк с датой и временем
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Связи
-  student       User          @relation(fields: [userId], references: [id])
-  subscription     Subscription     @relation(fields: [subscriptionId], references: [id])
-  lessons          UserLesson[]
+  student      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  lessons      UserLesson[]
 
   @@index([userId])
   @@index([subscriptionId])
 }
 
 enum LessonStatus {
-  PENDING      // Не проведён (по умолчанию)
-  COMPLETED    // Проведён
-  EXPIRED      // Сгорел
-  TRANSFERRED  // Перенесён (уже перенесён на другую дату)
+  PENDING // Не проведён (по умолчанию)
+  COMPLETED // Проведён
+  EXPIRED // Сгорел
+  TRANSFERRED // Перенесён (уже перенесён на другую дату)
   TRANSFER_REQUEST // Запрос на перенос
 }
 
 model UserLesson {
-  id                   Int          @id @default(autoincrement())
-  userSubscriptionId   Int
+  id                 Int @id @default(autoincrement())
+  userSubscriptionId Int
 
-  scheduledAt          DateTime     // Запланированная дата и время урока
-  status               String @default("pending")
+  scheduledAt DateTime // Запланированная дата и время урока
+  status      String   @default("pending")
 
-  completedAt          DateTime?    // Когда урок был проведён (если COMPLETED)
-  transferredTo        DateTime?    // Новая дата, если был перенесён
+  completedAt   DateTime? // Когда урок был проведён (если COMPLETED)
+  transferredTo DateTime? // Новая дата, если был перенесён
 
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Связь с подпиской студента
-  userSubscription     UserSubscription @relation(fields: [userSubscriptionId], references: [id])
+  userSubscription UserSubscription @relation(fields: [userSubscriptionId], references: [id], onDelete: Cascade)
 
   @@index([userSubscriptionId])
   @@index([scheduledAt])
