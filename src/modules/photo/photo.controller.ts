@@ -32,6 +32,7 @@ export class PhotoController {
     @Body('title') title: string,
     @Req() req: RequestWithUser,
     @Body('categoryIds') categoryIdsRaw?: string,
+    @Body('isOther') isOther?: boolean,
   ) {
     let categoryIds: number[] = [];
 
@@ -43,7 +44,13 @@ export class PhotoController {
       }
     }
 
-    return this.photoService.uploadPhoto(file, title, req.user.id, categoryIds);
+    return this.photoService.uploadPhoto(
+      file,
+      title,
+      req.user.id,
+      categoryIds,
+      isOther,
+    );
   }
 
   @Get()

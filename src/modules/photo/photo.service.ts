@@ -17,22 +17,26 @@ export class PhotoService {
     title: string,
     userId: number,
     categoryIds?: number[],
+    isOther?: boolean,
   ) {
-    const uploaded = await this.fileService.uploadFile(file, 'image');
-    await this.prisma.photo.create({
-      data: {
-        title,
-        url: uploaded.url,
-        publicId: uploaded.public_id,
-        userId,
-        categories: categoryIds?.length
-          ? {
-              connect: categoryIds.map((id) => ({ id })),
-            }
-          : undefined,
-      },
-    });
-    return true;
+    const uploaded = await this.fileService.uploadFile(file, 'image', isOther);
+    if (!isOther) {
+      await this.prisma.photo.create({
+        data: {
+          title,
+          url: uploaded.url,
+          publicId: uploaded.public_id,
+          userId,
+          categories: categoryIds?.length
+            ? {
+                connect: categoryIds.map((id) => ({ id })),
+              }
+            : undefined,
+        },
+      });
+    }
+
+    return uploaded.url;
   }
 
   async getAllAPhoto(
