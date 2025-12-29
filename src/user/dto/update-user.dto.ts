@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -26,7 +26,6 @@ export class UpdateUserDto {
   instagram?: string;
 
   @IsOptional()
-  @IsDateString()
   birthDate?: string;
 
   @IsOptional()
