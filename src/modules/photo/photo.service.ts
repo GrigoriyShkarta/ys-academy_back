@@ -53,7 +53,7 @@ export class PhotoService {
       where: {
         title: {
           contains: search,
-          mode: 'insensitive', // не учитываем регистр
+          mode: 'insensitive',
         },
       },
     });
