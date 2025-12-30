@@ -8,6 +8,10 @@ export class CourseDto {
   @IsOptional()
   url?: string;
 
+  @IsString()
+  @IsOptional()
+  publicImgId?: string;
+
   @IsArray()
   @IsOptional()
   categories?: number[];

@@ -219,6 +219,7 @@ export class LessonService {
       data: {
         title: dto.title,
         cover: dto?.cover ?? '',
+        publicImgId: dto?.publicImgId ?? null,
         content: (content as Prisma.JsonValue) || [],
         categories: dto?.categoryIds?.length
           ? {
@@ -260,11 +261,16 @@ export class LessonService {
 
     const content = await this.resolveMediaLinksInContent(dto.blocks || []);
 
+    if (dto.publicImgId && currentLesson.publicImgId) {
+      await this.fileService.deleteFile(currentLesson.publicImgId, 'image');
+    }
+
     await this.prisma.lesson.update({
       where: { id },
       data: {
         title: dto.title,
         cover: dto?.cover ?? '',
+        publicImgId: dto.publicImgId ?? null,
         content: (content as Prisma.JsonValue) || [],
         categories:
           dto?.categoryIds && dto.categoryIds.length > 0
@@ -306,10 +312,16 @@ export class LessonService {
 
   async deleteLesson(ids: number[]) {
     const formatedIds = ids.map((id) => +id);
-    const lesson = await this.prisma.lesson.findMany({
+    const lessons = await this.prisma.lesson.findMany({
       where: { id: { in: formatedIds } },
     });
-    if (!lesson.length) throw new BadRequestException('Lesson not found');
+    if (!lessons.length) throw new BadRequestException('Lessons not found');
+
+    lessons.forEach((lesson) => {
+      if (lesson.publicImgId) {
+        this.fileService.deleteFile(lesson.publicImgId, 'image');
+      }
+    });
 
     await this.prisma.lesson.deleteMany({ where: { id: { in: formatedIds } } });
     return { success: true };

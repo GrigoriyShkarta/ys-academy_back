@@ -36,7 +36,7 @@ export class PhotoService {
       });
     }
 
-    return uploaded.url;
+    return { url: uploaded.url, publicId: uploaded.public_id };
   }
 
   async getAllAPhoto(

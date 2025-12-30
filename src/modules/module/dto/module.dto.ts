@@ -26,6 +26,10 @@ export class ModuleDto {
   @IsOptional()
   url?: string;
 
+  @IsString()
+  @IsOptional()
+  publicImgId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ModuleLessonDto)

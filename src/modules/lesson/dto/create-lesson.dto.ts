@@ -67,6 +67,10 @@ export class CreateLessonDto {
   @IsOptional()
   cover?: string;
 
+  @IsString()
+  @IsOptional()
+  publicImgId?: string;
+
   @IsOptional()
   @IsArray()
   blocks?: any[];

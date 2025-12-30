@@ -1,17 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { ModuleDto } from './dto/module.dto';
+import { FileService } from '../file/file.service';
 
 @Injectable()
 export class ModuleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private fileService: FileService,
+  ) {}
 
   // ---------------- CREATE MODULE ----------------
   async createModule(data: ModuleDto) {
-    await this.prisma.module.create({
+    const module = await this.prisma.module.create({
       data: {
         title: data.title,
         url: data.url,
+        publicImgId: data.publicImgId ?? '',
         categories: data.categories?.length
           ? {
               connect: data.categories.map((id) => ({ id: Number(id) })),
@@ -30,7 +35,7 @@ export class ModuleService {
       },
     });
 
-    return { success: true };
+    return { id: module.id };
   }
 
   // ---------------- UPDATE MODULE ----------------
@@ -46,6 +51,10 @@ export class ModuleService {
 
     if (!module) {
       throw new Error('Module not found');
+    }
+
+    if (data?.publicImgId && module?.publicImgId) {
+      await this.fileService.deleteFile(module.publicImgId, 'image');
     }
 
     const incomingLessons = data.lessons ?? [];
@@ -72,6 +81,7 @@ export class ModuleService {
         data: {
           title: data.title ?? undefined,
           url: data.url ?? undefined,
+          publicImgId: data.publicImgId ?? undefined,
           categories: {
             set: [],
             ...(data.categories?.length
@@ -145,6 +155,10 @@ export class ModuleService {
   async deleteModule(id: number) {
     const module = await this.prisma.module.findUnique({ where: { id } });
     if (!module) throw new Error('Module not found');
+
+    if (module?.publicImgId) {
+      this.fileService.deleteFile(module.publicImgId, 'image');
+    }
 
     await this.prisma.module.delete({ where: { id } });
   }

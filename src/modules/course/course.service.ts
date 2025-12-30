@@ -1,16 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { CourseDto } from './dto/course.dto';
+import { FileService } from '../file/file.service';
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fileService: FileService,
+  ) {}
 
   async createCourse(data: CourseDto) {
     await this.prisma.course.create({
       data: {
         title: data.title,
         url: data.url ?? '',
+        publicImgId: data.publicImgId ?? '',
         categories: data.categories?.length
           ? {
               connect: data.categories.map((id) => ({ id: Number(id) })),
@@ -63,11 +68,14 @@ export class CourseService {
   async updateCourse(id: number, data: CourseDto) {
     const course = await this.prisma.course.findUnique({
       where: { id },
-      select: { id: true },
     });
 
     if (!course) {
       throw new Error('Course not found');
+    }
+
+    if (course.publicImgId && data?.publicImgId) {
+      await this.fileService.deleteFile(course.publicImgId, 'image');
     }
 
     await this.prisma.course.update({
@@ -239,6 +247,17 @@ export class CourseService {
   }
 
   async deleteCourse(id: number) {
+    const currentCourse = await this.prisma.course.findUnique({
+      where: { id },
+    });
+    if (!currentCourse) {
+      throw new Error('Course not found');
+    }
+
+    if (currentCourse?.publicImgId) {
+      await this.fileService.deleteFile(currentCourse.publicImgId, 'image');
+    }
+
     await this.prisma.course.delete({ where: { id } });
   }
 }
