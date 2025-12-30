@@ -12,7 +12,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'https://ys-academy.vercel.app',
-      'https://ys-academy-dev.vercel.app/',
+      'https://ys-academy-dev.vercel.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
