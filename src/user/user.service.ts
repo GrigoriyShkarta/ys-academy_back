@@ -177,7 +177,6 @@ export class UserService {
 
     // Функция для получения последней даты урока
     const getLastLessonTimestamp = (student: any): number => {
-      console.log('student', student);
       if (!student.subscriptions || student.subscriptions.length === 0) {
         return 0;
       }
