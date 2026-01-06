@@ -229,7 +229,7 @@ export class UserService {
     };
 
     // Хешируем пароль, если он передан
-    if (dto.password) {
+    if (dto?.password) {
       updateData.password = await bcrypt.hash(dto.password, 10);
     }
 
