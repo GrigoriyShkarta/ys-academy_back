@@ -220,16 +220,22 @@ export class UserService {
       photoPublicId = uploaded.public_id;
     }
 
-    console.log('dto', dto);
+    // Подготавливаем данные для обновления
+    const updateData = {
+      ...dto,
+      birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
+      photo: photoUrl,
+      photoId: photoPublicId,
+    };
+
+    // Хешируем пароль, если он передан
+    if (dto.password) {
+      updateData.password = await bcrypt.hash(dto.password, 10);
+    }
 
     return this.prisma.user.update({
       where: { id: userId },
-      data: {
-        ...dto,
-        birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
-        photo: photoUrl,
-        photoId: photoPublicId,
-      },
+      data: updateData,
     });
   }
 }
