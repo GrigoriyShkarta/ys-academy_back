@@ -475,17 +475,26 @@ export class LessonService {
         title: true,
         content: true,
         cover: true,
+        publicImgId: true,
+
+        // Добавляем модули, к которым привязан урок
+        moduleLessons: {
+          select: {
+            module: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        },
+
+        // Добавляем категории урока
         categories: {
           select: {
             id: true,
             title: true,
             color: true,
-          },
-        },
-        modules: {
-          select: {
-            id: true,
-            title: true,
           },
         },
       },
@@ -495,9 +504,17 @@ export class LessonService {
       throw new Error('Lesson not found');
     }
 
+    const formatedLesson = {
+      ...lesson,
+      modules: lesson.moduleLessons.map((ml) => ({
+        id: ml.module.id,
+        title: ml.module.title,
+      })),
+    };
+
     // super_admin — полный доступ
     if (role === 'super_admin') {
-      return lesson;
+      return formatedLesson;
     }
 
     const access = await this.prisma.userLessonAccess.findFirst({
@@ -510,7 +527,7 @@ export class LessonService {
 
     if (!access) {
       return {
-        ...lesson,
+        ...formatedLesson,
         content: [],
       };
     }
@@ -531,7 +548,7 @@ export class LessonService {
     );
 
     return {
-      ...lesson,
+      ...formatedLesson,
       content: filteredContent,
     };
   }

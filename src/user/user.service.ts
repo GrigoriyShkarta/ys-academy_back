@@ -220,6 +220,8 @@ export class UserService {
       photoPublicId = uploaded.public_id;
     }
 
+    console.log('dto', dto);
+
     return this.prisma.user.update({
       where: { id: userId },
       data: {

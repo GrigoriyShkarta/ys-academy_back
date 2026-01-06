@@ -18,6 +18,9 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException('validation.invalid_email_or_password');
     }
+    if (!user.isActive) {
+      throw new UnauthorizedException('validation.user_is_not_active');
+    }
     return this.authService.login(user);
   }
 

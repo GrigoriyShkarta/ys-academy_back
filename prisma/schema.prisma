@@ -40,6 +40,7 @@ model User {
   vocalExperience      String?
   goals                String?
   password             String
+  isActive             Boolean   @default(true)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   role                 Role      @default(student)
@@ -81,25 +82,25 @@ model Module {
 }
 
 model Course {
-  id         Int        @id @default(autoincrement())
-  url        String?
+  id          Int        @id @default(autoincrement())
+  url         String?
   publicImgId String?
-  title      String
-  categories Category[] @relation("CourseCategories")
-  modules    Module[]   @relation("CourseModules")
+  title       String
+  categories  Category[] @relation("CourseCategories")
+  modules     Module[]   @relation("CourseModules")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
 
 model Lesson {
-  id        Int      @id @default(autoincrement())
-  title     String
-  cover     String?
+  id          Int      @id @default(autoincrement())
+  title       String
+  cover       String?
   publicImgId String?
-  content   Json     @default("[]")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  modules   Module[] @relation("ModuleLessons")
+  content     Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  modules     Module[] @relation("ModuleLessons")
 
   moduleLessons ModuleLesson[]
 

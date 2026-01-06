@@ -3,6 +3,7 @@ export const userSelect = {
   email: true,
   name: true,
   role: true,
+  isActive: true,
 };
 
 export const studentSelect = {
@@ -18,6 +19,7 @@ export const studentSelect = {
   musicLevel: true,
   vocalExperience: true,
   goals: true,
+  isActive: true,
 
   subscriptions: {
     select: {

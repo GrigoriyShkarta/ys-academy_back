@@ -23,7 +23,12 @@ export class AuthService {
     return result;
   }
 
-  async login(user: { id: number; email: string; role: string }) {
+  async login(user: {
+    id: number;
+    email: string;
+    role: string;
+    isActive: boolean;
+  }) {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -48,7 +53,12 @@ export class AuthService {
       data: { refreshToken: hashedRefresh },
     });
 
-    return { access_token, refresh_token, role: user.role };
+    return {
+      access_token,
+      refresh_token,
+      role: user.role,
+      isActive: user.isActive,
+    };
   }
 
   async refreshToken(refreshToken: string) {
