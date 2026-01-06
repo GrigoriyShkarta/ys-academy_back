@@ -73,4 +73,9 @@ export class CourseController {
   async deleteModule(@Param('id') id: number) {
     return this.courseService.deleteCourse(id);
   }
+
+  @Get('fix-timestamps')
+  async fixTimestamps() {
+    return this.courseService.fixCoursesTimestamps();
+  }
 }
