@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -28,6 +29,13 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   getMe(@Req() req: RequestWithUser) {
     return this.userService.findById(req.user.id);
+  }
+
+  @Delete('/:id')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'super_admin')
+  deleteUser(@Param('id') id: string) {
+    return this.userService.deleteUser(Number(id));
   }
 
   @Get('/students')

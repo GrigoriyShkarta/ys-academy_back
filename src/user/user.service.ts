@@ -283,4 +283,16 @@ export class UserService {
       data: updateData,
     });
   }
+
+  async deleteUser(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+    if (user?.photoId) {
+      await this.fileService.deleteFile(user.photoId, 'image');
+    }
+    await this.prisma.user.delete({ where: { id: userId } });
+    return true;
+  }
 }
