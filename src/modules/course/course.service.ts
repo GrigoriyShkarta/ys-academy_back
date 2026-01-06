@@ -32,36 +32,6 @@ export class CourseService {
     return true;
   }
 
-  async fixCoursesTimestamps() {
-    // Обновляем все курсы с null timestamps
-    const coursesToFix = await this.prisma.course.findMany({
-      where: {
-        OR: [{ updatedAt: null }, { createdAt: null }],
-      },
-    });
-
-    if (coursesToFix.length === 0) {
-      return { fixed: 0, message: 'No courses to fix' };
-    }
-
-    await this.prisma.$transaction(
-      coursesToFix.map((course) =>
-        this.prisma.course.update({
-          where: { id: course.id },
-          data: {
-            createdAt: course.createdAt ?? new Date(),
-            updatedAt: course.updatedAt ?? course.createdAt ?? new Date(),
-          },
-        }),
-      ),
-    );
-
-    return {
-      fixed: coursesToFix.length,
-      message: `Fixed ${coursesToFix.length} courses`,
-    };
-  }
-
   async getCourses(params: { search?: string; categories?: string[] }) {
     const { search, categories } = params;
 
