@@ -150,12 +150,14 @@ export class UserService {
   }) {
     const { page = 1, search = '', limit = 15 } = params;
 
-    const take = 20;
     const isAll = page === 'all';
-    const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
+    const skip = isAll
+      ? undefined
+      : (Number(page === 0 ? 1 : page) - 1) * limit;
 
     const where: Prisma.UserWhereInput = {
       role: 'student',
+      isActive: true, // <- Фильтруем только активных
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
@@ -164,16 +166,60 @@ export class UserService {
       }),
     };
 
-    const [students, total] = await Promise.all([
+    // Получаем всех активных студентов
+    const [allStudents, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
-        skip,
-        take: limit,
         select: studentSelect,
-        orderBy: { createdAt: 'desc' },
       }),
       this.prisma.user.count({ where }),
     ]);
+
+    // Функция для получения последней даты урока
+    const getLastLessonTimestamp = (student: any): number => {
+      console.log('student', student);
+      if (!student.subscriptions || student.subscriptions.length === 0) {
+        return 0;
+      }
+
+      const allLessons = student.subscriptions.flatMap(
+        (sub: any) => sub.lessons || [],
+      );
+
+      if (allLessons.length === 0) return 0;
+
+      return Math.max(
+        ...allLessons.map((lesson: any) =>
+          new Date(lesson.scheduledAt).getTime(),
+        ),
+      );
+    };
+
+    // Получаем текущую временную метку
+    const now = Date.now();
+
+    // Сортируем: ближайшие к сегодня - сверху
+    allStudents.sort((a, b) => {
+      const dateA = getLastLessonTimestamp(a);
+      const dateB = getLastLessonTimestamp(b);
+
+      // Если нет уроков - в конец
+      if (dateA === 0 && dateB === 0) return 0;
+      if (dateA === 0) return 1;
+      if (dateB === 0) return -1;
+
+      // Вычисляем разницу с сегодняшним днем (по модулю)
+      const diffA = Math.abs(now - dateA);
+      const diffB = Math.abs(now - dateB);
+
+      // Чем меньше разница - тем выше в списке
+      return diffA - diffB;
+    });
+
+    // Применяем пагинацию
+    const students = isAll
+      ? allStudents
+      : allStudents.slice(skip, skip! + limit);
 
     const totalPages = Math.ceil(total / limit);
 
