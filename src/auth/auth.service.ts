@@ -124,4 +124,11 @@ export class AuthService {
     const { password, ...result } = user;
     return result;
   }
+
+  async deactivateUser(userId: number) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+    });
+  }
 }

@@ -4,6 +4,7 @@ export const userSelect = {
   name: true,
   role: true,
   isActive: true,
+  accessExpiryDate: true,
 };
 
 export const studentSelect = {
@@ -20,6 +21,7 @@ export const studentSelect = {
   vocalExperience: true,
   goals: true,
   isActive: true,
+  accessExpiryDate: true,
 
   subscriptions: {
     select: {
@@ -39,6 +41,7 @@ export const studentSelect = {
           id: true,
           scheduledAt: true,
           status: true,
+          recordingUrl: true,
         },
       },
     },

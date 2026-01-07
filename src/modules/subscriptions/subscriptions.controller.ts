@@ -94,4 +94,17 @@ export class SubscriptionsController {
   ) {
     return this.subscriptionsService.updateLessonStatus(id, dto);
   }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'super_admin')
+  @Patch('lessons/:lessonId/recording')
+  addRecording(
+    @Param('lessonId') lessonId: number,
+    @Body() dto: { recordingUrl: string },
+  ) {
+    return this.subscriptionsService.addRecordingToLesson(
+      +lessonId,
+      dto.recordingUrl,
+    );
+  }
 }

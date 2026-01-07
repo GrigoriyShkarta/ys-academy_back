@@ -159,6 +159,8 @@ export class SubscriptionsService {
           where: { id: subscriptionId },
         });
 
+        console.log('newSubscription', newSubscription);
+
         if (!newSubscription) {
           throw new BadRequestException('New subscription not found');
         }
@@ -169,6 +171,8 @@ export class SubscriptionsService {
       }
 
       if (lessonDates.length !== targetLessonsCount) {
+        console.log('lessonDates', lessonDates);
+        console.log('targetLessonsCount', targetLessonsCount);
         throw new BadRequestException(
           `Количество дат должно быть равно ${targetLessonsCount}`,
         );
@@ -309,6 +313,23 @@ export class SubscriptionsService {
     return this.prisma.userLesson.update({
       where: { id: userLessonId },
       data,
+    });
+  }
+
+  async addRecordingToLesson(lessonId: number, recordingUrl: string) {
+    const lesson = await this.prisma.userLesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new BadRequestException('Lesson not found');
+    }
+
+    return this.prisma.userLesson.update({
+      where: { id: lessonId },
+      data: {
+        recordingUrl,
+      },
     });
   }
 }

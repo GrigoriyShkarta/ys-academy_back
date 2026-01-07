@@ -4,6 +4,7 @@ import {
   IsISO8601,
   IsNumber,
   IsOptional,
+  IsString,
 } from 'class-validator';
 
 export class UpdateStudentSubscriptionDto {
@@ -14,9 +15,10 @@ export class UpdateStudentSubscriptionDto {
   @IsOptional()
   @IsArray()
   @IsISO8601({ strict: true }, { each: true })
-  lessonDates?: string[]; // массив ISO строк
+  lessonDates?: string[];
 
   @IsOptional()
+  @IsString()
   paymentStatus?: string;
 
   @IsOptional()

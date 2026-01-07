@@ -53,4 +53,7 @@ export class UpdateUserDto {
   })
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  accessExpiryDate?: string;
 }

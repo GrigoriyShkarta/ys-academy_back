@@ -46,6 +46,7 @@ model User {
   role                 Role      @default(student)
   refreshToken         String?   @map("refresh_token")
   previousRefreshToken String?   @map("previous_refresh_token")
+  accessExpiryDate     DateTime? @map("access_expiry_date")
 
   Audio Audio[]
   Photo Photo[]
@@ -239,6 +240,8 @@ model UserLesson {
 
   completedAt   DateTime? // Когда урок был проведён (если COMPLETED)
   transferredTo DateTime? // Новая дата, если был перенесён
+
+  recordingUrl String? // Ссылка на запись урока
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -18,6 +18,10 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException('validation.invalid_email_or_password');
     }
+    if (user.accessExpiryDate && new Date(user.accessExpiryDate) < new Date()) {
+      await this.authService.deactivateUser(user.id);
+      throw new UnauthorizedException('validation.user_is_not_active');
+    }
     if (!user.isActive) {
       throw new UnauthorizedException('validation.user_is_not_active');
     }

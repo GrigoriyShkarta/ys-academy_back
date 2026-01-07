@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { studentSelect, userSelect } from './select/user.select';
@@ -20,10 +20,23 @@ export class UserService {
   }
 
   async findById(id: number) {
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id },
       select: userSelect,
     });
+
+    if (
+      user?.accessExpiryDate &&
+      new Date(user.accessExpiryDate) < new Date()
+    ) {
+      await this.prisma.user.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      throw new UnauthorizedException('validation.user_is_not_active');
+    }
+
+    return user;
   }
 
   async getStudentById(id: number, role: string) {
@@ -157,7 +170,6 @@ export class UserService {
 
     const where: Prisma.UserWhereInput = {
       role: 'student',
-      isActive: true, // <- Фильтруем только активных
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
@@ -269,6 +281,9 @@ export class UserService {
     const updateData = {
       ...dto,
       birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
+      accessExpiryDate: dto.accessExpiryDate
+        ? new Date(dto.accessExpiryDate)
+        : undefined,
       photo: photoUrl,
       photoId: photoPublicId,
     };
