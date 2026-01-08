@@ -180,14 +180,45 @@ export class ModuleService {
         : {}),
     };
 
-    return this.prisma.module.findMany({
+    const modules = await this.prisma.module.findMany({
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       where,
       include: {
-        lessons: { select: { id: true, title: true } },
+        moduleLessons: {
+          orderBy: { order: 'asc' },
+          include: {
+            lesson: {
+              select: {
+                id: true,
+                title: true,
+                content: true,
+                categories: true,
+              },
+            },
+          },
+        },
         categories: { select: { id: true, title: true, color: true } },
       },
     });
+
+    // Форматируем данные
+
+    return modules.map((module) => ({
+      id: module.id,
+      title: module.title,
+      url: module.url,
+      publicImgId: module.publicImgId,
+      createdAt: module.createdAt,
+      updatedAt: module.updatedAt,
+      categories: module.categories,
+      lessons: module.moduleLessons.map((ml) => ({
+        id: ml.lesson.id,
+        title: ml.lesson.title,
+        content: ml.lesson.content,
+        categories: ml.lesson.categories,
+        order: ml.order, // если нужен порядок
+      })),
+    }));
   }
 
   // ---------------- GET MODULE WITH ACCESS ----------------

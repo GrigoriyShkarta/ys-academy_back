@@ -26,6 +26,7 @@ export class UserService {
     });
 
     if (
+      user?.role === 'student' &&
       user?.accessExpiryDate &&
       new Date(user.accessExpiryDate) < new Date()
     ) {
@@ -34,6 +35,35 @@ export class UserService {
         data: { isActive: false },
       });
       throw new UnauthorizedException('validation.user_is_not_active');
+    }
+
+    const lastLesson = await this.prisma.userLesson.findFirst({
+      where: {
+        userSubscription: {
+          userId: id,
+        },
+      },
+      orderBy: {
+        scheduledAt: 'desc',
+      },
+      select: {
+        scheduledAt: true,
+      },
+    });
+
+    if (lastLesson) {
+      const lastLessonDate = new Date(lastLesson.scheduledAt);
+      const deadline = new Date(
+        lastLessonDate.getTime() + 7 * 24 * 60 * 60 * 1000,
+      );
+
+      if (new Date() > deadline && user?.role === 'student') {
+        await this.prisma.user.update({
+          where: { id },
+          data: { isActive: false },
+        });
+        throw new UnauthorizedException('validation.user_is_not_active');
+      }
     }
 
     return user;

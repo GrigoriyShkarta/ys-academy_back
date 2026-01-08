@@ -12,7 +12,9 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
     if (!user) return null;
 
     const isPasswordMatching = await bcrypt.compare(password, user.password);
@@ -84,7 +86,7 @@ export class AuthService {
         { sub: user.id, email: user.email, role: user.role },
         {
           secret: process.env.JWT_SECRET,
-          expiresIn: '15m',
+          expiresIn: '12h',
         },
       );
 

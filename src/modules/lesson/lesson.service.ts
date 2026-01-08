@@ -255,6 +255,9 @@ export class LessonService {
   async updateLesson(id: number, dto: CreateLessonDto) {
     const currentLesson = await this.prisma.lesson.findUnique({
       where: { id },
+      include: {
+        moduleLessons: true, // Получаем существующие связи
+      },
     });
 
     if (!currentLesson) throw new BadRequestException('Lesson not found');
@@ -265,36 +268,47 @@ export class LessonService {
       await this.fileService.deleteFile(currentLesson.publicImgId, 'image');
     }
 
-    await this.prisma.lesson.update({
-      where: { id },
-      data: {
-        title: dto.title,
-        cover: dto?.cover ?? '',
-        publicImgId: dto.publicImgId ?? null,
-        content: (content as Prisma.JsonValue) || [],
-        categories:
-          dto?.categoryIds && dto.categoryIds.length > 0
-            ? {
-                set: [], // сначала отключаем ВСЕ старые связи
-                connect: dto.categoryIds
-                  .filter((id) => !isNaN(Number(id)))
-                  .map((id) => ({ id: Number(id) })),
-              }
-            : {
-                set: [], // если categoryIds пустой — отвязываем все категории
-              },
-        modules:
-          dto?.moduleIds && dto.moduleIds.length > 0
-            ? {
-                set: [], // сначала отключаем ВСЕ старые связи
-                connect: dto.moduleIds
-                  .filter((id) => !isNaN(Number(id)))
-                  .map((id) => ({ id: Number(id) })),
-              }
-            : {
-                set: [], // если categoryIds пустой — отвязываем все категории
-              },
-      },
+    // Транзакция для атомарного обновления
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Обновляем основную информацию урока
+      await tx.lesson.update({
+        where: { id },
+        data: {
+          title: dto.title,
+          cover: dto?.cover ?? '',
+          publicImgId: dto.publicImgId ?? null,
+          content: (content as Prisma.JsonValue) || [],
+          // Обновляем категории (обычная many-to-many связь)
+          categories:
+            dto?.categoryIds && dto.categoryIds.length > 0
+              ? {
+                  set: dto.categoryIds
+                    .filter((id) => !isNaN(Number(id)))
+                    .map((id) => ({ id: Number(id) })),
+                }
+              : { set: [] },
+        },
+      });
+
+      // 2. Удаляем все старые связи ModuleLesson для этого урока
+      await tx.moduleLesson.deleteMany({
+        where: { lessonId: id },
+      });
+
+      // 3. Создаем новые связи ModuleLesson
+      if (dto?.moduleIds && dto.moduleIds.length > 0) {
+        const validModuleIds = dto.moduleIds
+          .filter((id) => !isNaN(Number(id)))
+          .map((id) => Number(id));
+
+        await tx.moduleLesson.createMany({
+          data: validModuleIds.map((moduleId, index) => ({
+            moduleId,
+            lessonId: id,
+            order: index + 1, // Устанавливаем порядок
+          })),
+        });
+      }
     });
 
     const audioIds = collectAudioIds(dto.blocks || []);
@@ -516,6 +530,8 @@ export class LessonService {
     if (role === 'super_admin') {
       return formatedLesson;
     }
+
+
 
     const access = await this.prisma.userLessonAccess.findFirst({
       where: {

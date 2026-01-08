@@ -5,6 +5,7 @@ export const userSelect = {
   role: true,
   isActive: true,
   accessExpiryDate: true,
+  subscriptions: true,
 };
 
 export const studentSelect = {
