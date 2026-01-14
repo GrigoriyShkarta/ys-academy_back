@@ -69,7 +69,7 @@ export class UserService {
     return user;
   }
 
-  async getStudentById(id: number, role: string) {
+  async getStudentById(id: number) {
     const student = await this.prisma.user.findUnique({
       where: { id },
       select: studentSelect,
@@ -271,6 +271,7 @@ export class UserService {
         page,
         totalPages,
         limit,
+        activeStudentsCount: students.filter((s) => s.isActive).length,
       },
     };
   }

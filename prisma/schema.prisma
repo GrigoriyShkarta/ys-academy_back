@@ -26,6 +26,14 @@ enum PaymentStatus {
   unpaid
 }
 
+enum TrackerColumnId {
+  plans // В плпнах
+  homework // ДЗ
+  songs // Пісні
+  in_progress // В процесі
+  completed // Виконено
+}
+
 model User {
   id                   Int       @id @default(autoincrement())
   email                String    @unique
@@ -54,6 +62,9 @@ model User {
 
   userLessonAccesses UserLessonAccess[]
   subscriptions      UserSubscription[]
+
+  // Связь с трекером
+  trackerTasks TrackerTask[]
 }
 
 model UserLessonAccess {
@@ -147,11 +158,9 @@ model Audio {
   url       String
   publicId  String
   createdAt DateTime @default(now())
-  // updatedAt DateTime   @updatedAt
   userId    Int?
   user      User?    @relation(fields: [userId], references: [id])
 
-  // Связь с категориями
   categories Category[] @relation("AudioCategories")
   lessons    Lesson[]   @relation("AudioLessons")
 }
@@ -162,7 +171,6 @@ model Photo {
   url       String
   publicId  String
   createdAt DateTime @default(now())
-  // updatedAt DateTime   @updatedAt
   userId    Int?
   user      User?    @relation(fields: [userId], references: [id])
 
@@ -176,7 +184,6 @@ model Video {
   url       String
   publicId  String?
   createdAt DateTime @default(now())
-  // updatedAt DateTime   @updatedAt
   userId    Int?
   user      User?    @relation(fields: [userId], references: [id])
 
@@ -186,10 +193,9 @@ model Video {
 
 model Category {
   id    Int     @id @default(autoincrement())
-  title String  @unique // обычно название категории уникально
+  title String  @unique
   color String? @default("")
 
-  // Обратные связи (имена должны совпадать с теми, что в @relation())
   audios  Audio[]  @relation("AudioCategories")
   photos  Photo[]  @relation("PhotoCategories")
   videos  Video[]  @relation("VideoCategories")
@@ -208,13 +214,11 @@ model UserSubscription {
   paymentStatus  String @default("unpaid")
   amount         Int?
 
-  // Даты и время уроков (по одному на урок)
-  lessonDates DateTime[] // массив ISO строк с датой и временем
+  lessonDates DateTime[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Связи
   student      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   lessons      UserLesson[]
@@ -224,29 +228,28 @@ model UserSubscription {
 }
 
 enum LessonStatus {
-  PENDING // Не проведён (по умолчанию)
-  COMPLETED // Проведён
-  EXPIRED // Сгорел
-  TRANSFERRED // Перенесён (уже перенесён на другую дату)
-  TRANSFER_REQUEST // Запрос на перенос
+  PENDING
+  COMPLETED
+  EXPIRED
+  TRANSFERRED
+  TRANSFER_REQUEST
 }
 
 model UserLesson {
   id                 Int @id @default(autoincrement())
   userSubscriptionId Int
 
-  scheduledAt DateTime // Запланированная дата и время урока
+  scheduledAt DateTime
   status      String   @default("pending")
 
-  completedAt   DateTime? // Когда урок был проведён (если COMPLETED)
-  transferredTo DateTime? // Новая дата, если был перенесён
+  completedAt   DateTime?
+  transferredTo DateTime?
 
-  recordingUrl String? // Ссылка на запись урока
+  recordingUrl String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Связь с подпиской студента
   userSubscription UserSubscription @relation(fields: [userSubscriptionId], references: [id], onDelete: Cascade)
 
   @@index([userSubscriptionId])
@@ -262,4 +265,43 @@ model Subscription {
   updatedAt     DateTime @updatedAt
 
   userSubsriptions UserSubscription[]
+}
+
+// ============================================
+// ТРЕКЕР МОДЕЛІ
+// ============================================
+
+model TrackerTask {
+  id          Int             @id @default(autoincrement())
+  userId      Int // Студент, якому належить задача
+  title       String // Назва задачі
+  description String?
+  columnId    TrackerColumnId // Колонка (ДЗ, Пісні, В процесі, Виконено)
+  order       Int             @default(0) // Порядок в колонці
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Зв'язки
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subtasks TrackerSubtask[]
+
+  @@index([userId])
+  @@index([userId, columnId])
+  @@index([userId, columnId, order])
+}
+
+model TrackerSubtask {
+  id        Int     @id @default(autoincrement())
+  taskId    Int // Задача, до якої належить підзадача
+  title     String // Назва підзадачі
+  completed Boolean @default(false) // Виконано чи ні
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Зв'язки
+  task TrackerTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
 }

@@ -12,6 +12,7 @@ import { ModuleModule } from './modules/module/module.module';
 import { CourseModule } from './modules/course/course.module';
 import { CategoryModule } from './modules/category/category.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { TrackersModule } from './modules/trackers/trackers.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     CategoryModule,
     CourseModule,
     SubscriptionsModule,
+    TrackersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
