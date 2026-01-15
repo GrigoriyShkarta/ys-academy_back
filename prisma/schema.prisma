@@ -32,6 +32,9 @@ enum TrackerColumnId {
   songs // Пісні
   in_progress // В процесі
   completed // Виконено
+  song_plans
+  song_in_progress
+  song_ready
 }
 
 model User {

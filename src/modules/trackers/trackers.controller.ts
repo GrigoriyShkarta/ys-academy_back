@@ -20,30 +20,53 @@ import {
 import { TrackersService } from './trackers.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ToggleSubtaskDto } from './dto/subtask.dto';
 
 @Controller('trackers')
 @UseGuards(AuthGuard('jwt'))
 export class TrackersController {
   constructor(private readonly trackerService: TrackersService) {}
 
-  // Получить все задачи текущего пользователя
-  @Get(':id')
-  @UseGuards(AuthGuard('jwt'))
-  getTasks(@Param('id') userId: number) {
-    return this.trackerService.getStudentTasks(userId);
+  // ===================================
+  // СПЕЦИФИЧНЫЕ РОУТЫ (БЕЗ ПАРАМЕТРОВ) - ВВЕРХУ!
+  // ===================================
+
+  // Toggle подзадачи
+  @Patch('toggle')
+  toggleSubtask(@Body() dto: ToggleSubtaskDto) {
+    return this.trackerService.toggleSubtask(dto);
   }
 
   // Создать задачу
   @Post()
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(RolesGuard)
   @Roles('admin', 'super_admin')
   createTask(@Body() dto: CreateTrackerTaskDto) {
     return this.trackerService.createTask(dto);
   }
 
+  // ===================================
+  // РОУТЫ С ПАРАМЕТРАМИ - ВНИЗУ!
+  // ===================================
+
+  // Получить все задачи студента
+  @Get(':id')
+  getTasks(@Param('id', ParseIntPipe) userId: number) {
+    return this.trackerService.getStudentTasks(userId);
+  }
+
+  // Переместить задачу (должен быть ВЫШЕ @Patch(':taskId'))
+  @Patch(':taskId/move')
+  moveTask(
+    @Param('taskId', ParseIntPipe) taskId: number,
+    @Body() dto: MoveTrackerTaskDto,
+  ) {
+    return this.trackerService.moveTask(taskId, dto);
+  }
+
   // Обновить задачу
   @Patch(':taskId')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(RolesGuard)
   @Roles('admin', 'super_admin')
   updateTask(
     @Param('taskId', ParseIntPipe) taskId: number,
@@ -54,19 +77,9 @@ export class TrackersController {
 
   // Удалить задачу
   @Delete(':taskId')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(RolesGuard)
   @Roles('admin', 'super_admin')
   deleteTask(@Param('taskId', ParseIntPipe) taskId: number) {
     return this.trackerService.deleteTask(taskId);
-  }
-
-  // Переместить задачу
-  @Patch(':taskId/move')
-  @UseGuards(AuthGuard('jwt'))
-  moveTask(
-    @Param('taskId', ParseIntPipe) taskId: number,
-    @Body() dto: MoveTrackerTaskDto,
-  ) {
-    return this.trackerService.moveTask(taskId, dto);
   }
 }

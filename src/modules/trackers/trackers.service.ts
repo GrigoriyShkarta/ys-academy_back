@@ -6,6 +6,7 @@ import {
   UpdateTrackerTaskDto,
 } from './dto/tracker.dto';
 import { TrackerColumnId } from 'generated/prisma/client';
+import { ToggleSubtaskDto } from './dto/subtask.dto';
 
 @Injectable()
 export class TrackersService {
@@ -206,6 +207,115 @@ export class TrackersService {
     return this.prisma.trackerTask.findUnique({
       where: { id: taskId },
       include: { subtasks: true },
+    });
+  }
+
+  async toggleSubtask(dto: ToggleSubtaskDto) {
+    // Проверяем что задача принадлежит пользователю
+    const task = await this.prisma.trackerTask.findFirst({
+      where: { id: dto.taskId, userId: dto.userId },
+      include: { subtasks: true },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    const subtask = await this.prisma.trackerSubtask.findFirst({
+      where: { id: dto.subtaskId, taskId: dto.taskId },
+    });
+
+    if (!subtask) {
+      throw new NotFoundException('Subtask not found');
+    }
+
+    // Используем транзакцию для атомарного обновления
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Обновляем статус подзадачи
+      await tx.trackerSubtask.update({
+        where: { id: dto.subtaskId },
+        data: { completed: dto.completed },
+      });
+
+      // 2. Получаем все подзадачи задачи (с учетом обновления)
+      const allSubtasks = await tx.trackerSubtask.findMany({
+        where: { taskId: dto.taskId },
+      });
+
+      // Если нет подзадач - ничего не делаем
+      if (allSubtasks.length === 0) {
+        return tx.trackerTask.findUnique({
+          where: { id: dto.taskId },
+          include: { subtasks: true },
+        });
+      }
+
+      // 3. Определяем новую колонку на основе статуса подзадач
+      const completedCount = allSubtasks.filter((s) => s.completed).length;
+      const totalCount = allSubtasks.length;
+
+      let newColumnId: TrackerColumnId = task.columnId;
+
+      if (completedCount === 0) {
+        // Если нет выполненных подзадач - оставляем как есть
+        newColumnId = task.columnId;
+      } else if (completedCount === totalCount) {
+        // Все подзадачи выполнены - перемещаем в "Виконено"
+        newColumnId = TrackerColumnId.completed;
+      } else {
+        // Есть хотя бы одна выполненная - перемещаем в "В процесі"
+        newColumnId = TrackerColumnId.in_progress;
+      }
+
+      // 4. Если колонка изменилась - перемещаем задачу
+      if (newColumnId !== task.columnId) {
+        const oldColumnId = task.columnId;
+
+        // Сдвигаем все задачи в новой колонке вниз (+1 к order)
+        const tasksInNewColumn = await tx.trackerTask.findMany({
+          where: {
+            userId: dto.userId,
+            columnId: newColumnId,
+          },
+          orderBy: { order: 'asc' },
+        });
+
+        // Обновляем order для всех задач в новой колонке (сдвигаем вниз)
+        await Promise.all(
+          tasksInNewColumn.map((t) =>
+            tx.trackerTask.update({
+              where: { id: t.id },
+              data: { order: t.order + 1 },
+            }),
+          ),
+        );
+
+        // Перемещаем задачу в начало новой колонки (order = 0)
+        await tx.trackerTask.update({
+          where: { id: dto.taskId },
+          data: {
+            columnId: newColumnId,
+            order: 0, // В начало!
+          },
+        });
+
+        // Пересчитываем order в старой колонке
+        const oldColumnTasks = await tx.trackerTask.findMany({
+          where: { userId: dto.userId, columnId: oldColumnId },
+          orderBy: { order: 'asc' },
+        });
+
+        await Promise.all(
+          oldColumnTasks.map((t, index) =>
+            tx.trackerTask.update({
+              where: { id: t.id },
+              data: { order: index },
+            }),
+          ),
+        );
+      }
+
+      return { success: true };
     });
   }
 
