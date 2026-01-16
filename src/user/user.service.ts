@@ -341,4 +341,23 @@ export class UserService {
     await this.prisma.user.delete({ where: { id: userId } });
     return true;
   }
+
+  async roadNotifications(notificationIds: number[]) {
+    await this.prisma.notification.updateMany({
+      where: {
+        id: {
+          in: notificationIds,
+        },
+      },
+      data: { read: true },
+    });
+
+    return { success: true };
+  }
+  async deleteNotifications(notificationId: number) {
+    await this.prisma.notification.delete({
+      where: { id: notificationId },
+    });
+    return true;
+  }
 }

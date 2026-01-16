@@ -100,11 +100,12 @@ export class SubscriptionsController {
   @Patch('lessons/:lessonId/recording')
   addRecording(
     @Param('lessonId') lessonId: number,
-    @Body() dto: { recordingUrl: string },
+    @Body() dto: { recordingUrl: string; userId: number },
   ) {
     return this.subscriptionsService.addRecordingToLesson(
       +lessonId,
       dto.recordingUrl,
+      dto.userId,
     );
   }
 }

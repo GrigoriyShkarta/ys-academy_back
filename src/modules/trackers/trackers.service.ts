@@ -35,7 +35,7 @@ export class TrackersService {
 
     const newOrder = (maxOrder?.order ?? -1) + 1;
 
-    return this.prisma.trackerTask.create({
+    await this.prisma.trackerTask.create({
       data: {
         userId: dto.userId,
         title: dto.title,
@@ -53,6 +53,15 @@ export class TrackersService {
       },
       include: { subtasks: true },
     });
+
+    await this.prisma.notification.create({
+      data: {
+        userId: dto.userId,
+        title: 'new_task',
+      },
+    });
+
+    return { success: true };
   }
 
   // Обновить задачу

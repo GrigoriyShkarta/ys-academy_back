@@ -531,8 +531,6 @@ export class LessonService {
       return formatedLesson;
     }
 
-
-
     const access = await this.prisma.userLessonAccess.findFirst({
       where: {
         userId,
@@ -705,6 +703,13 @@ export class LessonService {
         skipDuplicates: true,
       });
     }
+
+    await this.prisma.notification.createMany({
+      data: studentIds.map((studentId) => ({
+        userId: studentId,
+        title: 'new_lesson',
+      })),
+    });
 
     return { success: true, granted: data.length };
   }

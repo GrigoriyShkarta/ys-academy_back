@@ -23,7 +23,7 @@ export const studentSelect = {
   goals: true,
   isActive: true,
   accessExpiryDate: true,
-
+  notifications: true,
   subscriptions: {
     select: {
       id: true,

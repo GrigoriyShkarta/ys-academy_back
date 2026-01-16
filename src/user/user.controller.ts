@@ -20,6 +20,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ReadNotificationsDto } from './dto/read-notifications.dto';
 
 @Controller('user')
 export class UserController {
@@ -58,6 +59,20 @@ export class UserController {
     return this.userService.create(body);
   }
 
+  // ⬇️ ПЕРЕМЕСТИТЕ ЭТИ ДВА МАРШРУТА СЮДА (до @Patch(':id'))
+  @Patch('notifications')
+  @UseGuards(AuthGuard('jwt'))
+  readNotifications(@Body() dto: ReadNotificationsDto) {
+    return this.userService.roadNotifications(dto.notificationsIds);
+  }
+
+  @Delete('notifications/:id')
+  @UseGuards(AuthGuard('jwt'))
+  deleteNotification(@Param('id') id: string) {
+    return this.userService.deleteNotifications(Number(id));
+  }
+
+  // ⬇️ ДИНАМИЧЕСКИЕ МАРШРУТЫ ВСЕГДА ДОЛЖНЫ БЫТЬ В КОНЦЕ
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   getStudent(@Param('id') id: string) {

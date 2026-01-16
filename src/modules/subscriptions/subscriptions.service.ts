@@ -316,7 +316,11 @@ export class SubscriptionsService {
     });
   }
 
-  async addRecordingToLesson(lessonId: number, recordingUrl: string) {
+  async addRecordingToLesson(
+    lessonId: number,
+    recordingUrl: string,
+    userId: number,
+  ) {
     const lesson = await this.prisma.userLesson.findUnique({
       where: { id: lessonId },
     });
@@ -324,6 +328,13 @@ export class SubscriptionsService {
     if (!lesson) {
       throw new BadRequestException('Lesson not found');
     }
+
+    await this.prisma.notification.create({
+      data: {
+        userId,
+        title: 'lesson_record',
+      },
+    });
 
     return this.prisma.userLesson.update({
       where: { id: lessonId },
