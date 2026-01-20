@@ -44,38 +44,37 @@ export class PhotoService {
     search = '',
     categories?: string[],
   ) {
+    console.log('page', page);
     const take = 20;
     const isAll = page === 'all';
     const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
 
-    // Считаем общее количество аудио с учетом поиска
-    const totalCount = await this.prisma.photo.count({
-      where: {
-        title: {
-          contains: search,
-          mode: 'insensitive',
-        },
+    // Базовые условия where
+    const whereConditions = {
+      title: {
+        contains: search,
+        mode: 'insensitive' as const,
       },
+      ...(Array.isArray(categories) && categories.length > 0
+        ? {
+            categories: {
+              some: {
+                id: {
+                  in: categories.map((id) => Number(id)),
+                },
+              },
+            },
+          }
+        : {}),
+    };
+
+    // Считаем общее количество фото с учетом поиска
+    const totalCount = await this.prisma.photo.count({
+      where: whereConditions,
     });
 
     const photos = await this.prisma.photo.findMany({
-      where: {
-        title: {
-          contains: search,
-          mode: 'insensitive',
-        },
-        ...(Array.isArray(categories) && categories.length > 0
-          ? {
-              categories: {
-                some: {
-                  id: {
-                    in: categories.map((id) => Number(id)),
-                  },
-                },
-              },
-            }
-          : {}),
-      },
+      where: whereConditions,
       select: {
         id: true,
         title: true,
@@ -94,17 +93,17 @@ export class PhotoService {
           },
         },
       },
-      skip,
-      take,
-      orderBy: { createdAt: 'desc' }, // можно сортировать по дате
+      skip: isAll ? undefined : skip, // Если 'all', то skip не передаем
+      take: isAll ? undefined : take, // Если 'all', то take не передаем
+      orderBy: { createdAt: 'desc' },
     });
 
-    const totalPages = Math.ceil(totalCount / take);
+    const totalPages = isAll ? 1 : Math.ceil(totalCount / take);
 
     return {
       data: photos,
       meta: {
-        currentPage: page,
+        currentPage: isAll ? 'all' : page,
         totalPages,
         totalItems: totalCount,
       },
