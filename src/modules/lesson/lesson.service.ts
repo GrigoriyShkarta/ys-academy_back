@@ -13,12 +13,14 @@ import {
   collectPhotoIds,
   collectVideoIds,
 } from '../../common/helpers';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class LessonService {
   constructor(
     private readonly prisma: PrismaService,
     private fileService: FileService,
+    private readonly emailService: EmailService,
   ) {}
 
   private async resolveMediaLinksInContent(
@@ -702,6 +704,39 @@ export class LessonService {
         data,
         skipDuplicates: true,
       });
+
+      // Получаем информацию об уроках для отправки email
+      const uniqueLessonIds = Array.from(new Set(data.map((d) => d.lessonId)));
+      const lessons = await this.prisma.lesson.findMany({
+        where: { id: { in: uniqueLessonIds } },
+        select: { id: true, title: true },
+      });
+
+      const lessonMap = new Map(lessons.map((l) => [l.id, l.title]));
+
+      // Группируем доступы по пользователям
+      const accessByUser = new Map<number, number[]>();
+      for (const access of data) {
+        if (!accessByUser.has(access.userId)) {
+          accessByUser.set(access.userId, []);
+        }
+        accessByUser.get(access.userId)!.push(access.lessonId);
+      }
+
+      // Отправляем email для каждого пользователя со списком всех уроков
+      for (const [userId, lessonIds] of accessByUser.entries()) {
+        // Собираем названия всех уроков для этого пользователя
+        const lessonTitles = lessonIds
+          .map((lessonId) => lessonMap.get(lessonId))
+          .filter((title): title is string => !!title);
+
+        if (lessonTitles.length > 0) {
+          await this.emailService.sendLessonAccessNotification(
+            userId,
+            lessonTitles,
+          );
+        }
+      }
     }
 
     await this.prisma.notification.createMany({

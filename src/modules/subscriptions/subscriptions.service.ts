@@ -8,10 +8,14 @@ import {
   UpdateUserLessonStatusDto,
 } from './dto/update-user-lesson-status.dto';
 import { UpdateStudentSubscriptionDto } from './dto/update-user-subscription.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async create(data: AbonementDto) {
     await this.prisma.subscription.create({ data });
@@ -159,8 +163,6 @@ export class SubscriptionsService {
           where: { id: subscriptionId },
         });
 
-        console.log('newSubscription', newSubscription);
-
         if (!newSubscription) {
           throw new BadRequestException('New subscription not found');
         }
@@ -171,8 +173,6 @@ export class SubscriptionsService {
       }
 
       if (lessonDates.length !== targetLessonsCount) {
-        console.log('lessonDates', lessonDates);
-        console.log('targetLessonsCount', targetLessonsCount);
         throw new BadRequestException(
           `Количество дат должно быть равно ${targetLessonsCount}`,
         );
@@ -335,6 +335,9 @@ export class SubscriptionsService {
         title: 'lesson_record',
       },
     });
+
+    // Отправка email-уведомлений для новых записей урока
+    await this.emailService.sendUserLessonNotification(userId);
 
     return this.prisma.userLesson.update({
       where: { id: lessonId },

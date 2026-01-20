@@ -7,10 +7,14 @@ import {
 } from './dto/tracker.dto';
 import { TrackerColumnId } from 'generated/prisma/client';
 import { ToggleSubtaskDto } from './dto/subtask.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class TrackersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   // Получить все задачи студента
   async getStudentTasks(userId: number) {
@@ -60,6 +64,15 @@ export class TrackersService {
         title: 'new_task',
       },
     });
+
+    console.log('create');
+
+    // Отправка email-уведомления
+    const check = await this.emailService.sendTrackerTaskNotification(
+      dto.userId,
+      dto.title,
+    );
+    console.log('check: ', check);
 
     return { success: true };
   }

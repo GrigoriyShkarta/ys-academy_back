@@ -13,6 +13,7 @@ import { CourseModule } from './modules/course/course.module';
 import { CategoryModule } from './modules/category/category.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TrackersModule } from './modules/trackers/trackers.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { TrackersModule } from './modules/trackers/trackers.module';
     CourseModule,
     SubscriptionsModule,
     TrackersModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
