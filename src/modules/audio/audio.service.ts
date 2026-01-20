@@ -54,7 +54,6 @@ export class AudioService {
           }
         : undefined,
 
-      // Убираем фильтр по категориям, если он не передан или пустой
       ...(Array.isArray(categories) && categories.length > 0
         ? {
             categories: {
@@ -70,7 +69,7 @@ export class AudioService {
 
     const totalCount = await this.prisma.audio.count({ where });
 
-    // безопасная валидация полей сортировки
+    // Безопасная валидация полей сортировки
     const allowedFields = new Set(['id', 'title', 'createdAt']);
     const orderField =
       sortBy && allowedFields.has(sortBy)
@@ -99,7 +98,8 @@ export class AudioService {
           },
         },
       },
-      ...(isAll ? {} : { skip, take }),
+      skip: isAll ? undefined : skip, // ⬅️ Более явно
+      take: isAll ? undefined : take, // ⬅️ Более явно
       orderBy: { [orderField]: order },
     });
 

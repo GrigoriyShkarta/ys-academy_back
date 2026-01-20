@@ -65,14 +65,8 @@ export class TrackersService {
       },
     });
 
-    console.log('create');
-
     // Отправка email-уведомления
-    const check = await this.emailService.sendTrackerTaskNotification(
-      dto.userId,
-      dto.title,
-    );
-    console.log('check: ', check);
+    await this.emailService.sendTrackerTaskNotification(dto.userId, dto.title);
 
     return { success: true };
   }
@@ -272,7 +266,16 @@ export class TrackersService {
         });
       }
 
-      // 3. Определяем новую колонку на основе статуса подзадач
+      // 3. Определяем, в каком "треке" находится задача (обычный или song)
+      const isSongTrack = (
+        [
+          TrackerColumnId.song_plans,
+          TrackerColumnId.song_in_progress,
+          TrackerColumnId.song_ready,
+        ] as TrackerColumnId[]
+      ).includes(task.columnId);
+
+      // 4. Определяем новую колонку на основе статуса подзадач
       const completedCount = allSubtasks.filter((s) => s.completed).length;
       const totalCount = allSubtasks.length;
 
@@ -282,14 +285,26 @@ export class TrackersService {
         // Если нет выполненных подзадач - оставляем как есть
         newColumnId = task.columnId;
       } else if (completedCount === totalCount) {
-        // Все подзадачи выполнены - перемещаем в "Виконено"
-        newColumnId = TrackerColumnId.completed;
+        // Все подзадачи выполнены
+        if (isSongTrack) {
+          // Song трек: перемещаем в "song_ready"
+          newColumnId = TrackerColumnId.song_ready;
+        } else {
+          // Обычный трек: перемещаем в "completed"
+          newColumnId = TrackerColumnId.completed;
+        }
       } else {
-        // Есть хотя бы одна выполненная - перемещаем в "В процесі"
-        newColumnId = TrackerColumnId.in_progress;
+        // Есть хотя бы одна выполненная подзадача (но не все)
+        if (isSongTrack) {
+          // Song трек: перемещаем в "song_in_progress"
+          newColumnId = TrackerColumnId.song_in_progress;
+        } else {
+          // Обычный трек: перемещаем в "in_progress"
+          newColumnId = TrackerColumnId.in_progress;
+        }
       }
 
-      // 4. Если колонка изменилась - перемещаем задачу
+      // 5. Если колонка изменилась - перемещаем задачу
       if (newColumnId !== task.columnId) {
         const oldColumnId = task.columnId;
 

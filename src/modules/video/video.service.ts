@@ -57,33 +57,32 @@ export class VideoService {
     const isAll = page === 'all';
     const skip = isAll ? undefined : (Number(page === 0 ? 1 : page) - 1) * take;
 
-    const totalCount = await this.prisma.video.count({
-      where: {
-        title: {
-          contains: search,
-          mode: 'insensitive', // не учитываем регистр
-        },
+    // Базовые условия where
+    const whereConditions = {
+      title: {
+        contains: search,
+        mode: 'insensitive' as const,
       },
+      ...(Array.isArray(categories) && categories.length > 0
+        ? {
+            categories: {
+              some: {
+                id: {
+                  in: categories.map((id) => Number(id)),
+                },
+              },
+            },
+          }
+        : {}),
+    };
+
+    // Считаем общее количество видео с учетом поиска
+    const totalCount = await this.prisma.video.count({
+      where: whereConditions,
     });
 
     const videos = await this.prisma.video.findMany({
-      where: {
-        title: {
-          contains: search,
-          mode: 'insensitive',
-        },
-        ...(Array.isArray(categories) && categories.length > 0
-          ? {
-              categories: {
-                some: {
-                  id: {
-                    in: categories.map((id) => Number(id)),
-                  },
-                },
-              },
-            }
-          : {}),
-      },
+      where: whereConditions,
       select: {
         id: true,
         title: true,
@@ -102,17 +101,17 @@ export class VideoService {
           },
         },
       },
-      skip,
-      take,
+      skip: isAll ? undefined : skip, // Если 'all', то skip не передаем
+      take: isAll ? undefined : take, // Если 'all', то take не передаем
       orderBy: { createdAt: 'desc' },
     });
 
-    const totalPages = Math.ceil(totalCount / take);
+    const totalPages = isAll ? 1 : Math.ceil(totalCount / take);
 
     return {
       data: videos,
       meta: {
-        currentPage: page,
+        currentPage: isAll ? 'all' : page,
         totalPages,
         totalItems: totalCount,
       },
