@@ -234,16 +234,29 @@ export class CourseService {
       isSuperAdmin = user?.role === 'super_admin';
     }
 
-    // Собираем все lessonId курса
-    const lessonIds = course.courseLessons.map((cl) => cl.lesson.id);
+    // Собираем lessonId из ВСЕХ источников
+    const lessonIds = [
+      // Уроки напрямую из курса
+      ...course.courseLessons.map((cl) => cl.lesson.id),
+      // Уроки из модулей
+      ...course.modules.flatMap((module) =>
+        module.moduleLessons.map((ml) => ml.lesson.id),
+      ),
+    ];
+
+    // Убираем дубликаты
+    const uniqueLessonIds = Array.from(new Set(lessonIds));
 
     // Получаем доступы пользователя (если userId есть и не super_admin)
+    console.log('userId', userId);
+    console.log('uniqueLessonIds', uniqueLessonIds);
+
     const accesses =
       userId && !isSuperAdmin
         ? await this.prisma.userLessonAccess.findMany({
             where: {
               userId,
-              lessonId: { in: lessonIds },
+              lessonId: { in: uniqueLessonIds },
             },
             select: {
               lessonId: true,
@@ -254,6 +267,7 @@ export class CourseService {
 
     // Map lessonId -> number[] (blockIds)
     const accessMap = new Map<number, number[]>();
+    console.log('accesses', accesses);
     accesses.forEach((a) => accessMap.set(a.lessonId, a.blocks));
 
     // Нормализация структуры content для извлечения blockId
@@ -323,9 +337,17 @@ export class CourseService {
         url: module.url,
         categories: module.categories,
         progress,
-        access: moduleAccess,
+        access: moduleAccess, // ⬅️ Используется для сортировки
         lessons,
       };
+    });
+
+    // ⬇️ СОРТИРОВКА: Модули с доступом (access: true) вначале
+    const sortedModules = modulesWithLessonsAccess.sort((a, b) => {
+      // Если оба имеют доступ или оба не имеют - сохраняем исходный порядок
+      if (a.access === b.access) return 0;
+      // Модули с доступом (true) идут раньше
+      return a.access ? -1 : 1;
     });
 
     // Обрабатываем уроки курса (не в модулях)
@@ -360,7 +382,7 @@ export class CourseService {
       title: course.title,
       url: course.url,
       categories: course.categories,
-      modules: modulesWithLessonsAccess,
+      modules: sortedModules, // ⬅️ Отсортированные модули
       lessons: courseLessonsWithAccess,
     };
   }
