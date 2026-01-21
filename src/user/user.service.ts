@@ -121,7 +121,25 @@ export class UserService {
             moduleLessons: {
               orderBy: { order: 'asc' },
               include: {
-                lesson: true,
+                lesson: {
+                  select: {
+                    id: true,
+                    title: true,
+                    content: true, // ⬅️ Важно! Загружаем content для подсчета блоков
+                  },
+                },
+              },
+            },
+          },
+        },
+        courseLessons: {
+          orderBy: { order: 'asc' },
+          include: {
+            lesson: {
+              select: {
+                id: true,
+                title: true,
+                content: true, // ⬅️ Важно! Загружаем content для подсчета блоков
               },
             },
           },
@@ -129,34 +147,58 @@ export class UserService {
       },
     });
 
+    // Функция для извлечения blockId из content
+    const normalizeBlocks = (content: any): number[] => {
+      if (!Array.isArray(content)) return [];
+
+      return content
+        .filter(
+          (x) =>
+            x &&
+            typeof x === 'object' &&
+            !Array.isArray(x) &&
+            (typeof x.blockId === 'number' || typeof x.blockId === 'string'),
+        )
+        .map((x) => Number(x.blockId))
+        .filter((n) => Number.isFinite(n));
+    };
+
     const coursesWithAccess = courses.map((course) => {
       let hasCourseAccess = false;
-
       let totalLessons = 0;
       let lessonsWithAccess = 0;
 
+      // Обрабатываем модули
       const modules = course.modules.map((module) => {
         const lessons = module.moduleLessons.map((ml) => {
           const lesson = ml.lesson;
           totalLessons++;
 
+          // Получаем все блоки урока
+          const totalBlocks = normalizeBlocks(lesson.content);
+
+          // Находим доступные блоки для пользователя
           const accessRecord = student.userLessonAccesses.find(
             (a) => a.lessonId === lesson.id,
           );
 
-          const availableBlocks = accessRecord?.blocks?.length ?? 0;
-          const hasAccess = availableBlocks > 0;
+          const availableBlocks = accessRecord?.blocks ?? [];
+          const hasAccess = availableBlocks.length > 0;
 
           if (hasAccess) {
             hasCourseAccess = true;
             lessonsWithAccess++;
           }
 
+          // Формат: "доступных блоков / всего блоков"
+          const accessString = `${availableBlocks.length}/${totalBlocks.length}`;
+
           return {
             id: lesson.id,
             title: lesson.title,
             access: hasAccess,
-            access_blocks: accessRecord?.blocks ?? [],
+            accessBlocks: availableBlocks,
+            accessString: accessString, // ⬅️ "1/3", "2/5" и т.д.
           };
         });
 
@@ -167,16 +209,54 @@ export class UserService {
         };
       });
 
-      // super_admin → всегда 100%
-      const progress = Math.round((lessonsWithAccess / totalLessons) * 100);
+      // Обрабатываем уроки курса (не в модулях)
+      const courseLessons = course.courseLessons.map((cl) => {
+        const lesson = cl.lesson;
+        totalLessons++;
+
+        // Получаем все блоки урока
+        const totalBlocks = normalizeBlocks(lesson.content);
+
+        // Находим доступные блоки для пользователя
+        const accessRecord = student.userLessonAccesses.find(
+          (a) => a.lessonId === lesson.id,
+        );
+
+        const availableBlocks = accessRecord?.blocks ?? [];
+        const hasAccess = availableBlocks.length > 0;
+
+        if (hasAccess) {
+          hasCourseAccess = true;
+          lessonsWithAccess++;
+        }
+
+        // Формат: "доступных блоков / всего блоков"
+        const accessString = `${availableBlocks.length}/${totalBlocks.length}`;
+
+        return {
+          id: lesson.id,
+          title: lesson.title,
+          access: hasAccess,
+          accessBlocks: availableBlocks,
+          accessString: accessString, // ⬅️ "1/3", "2/5" и т.д.
+          order: cl.order,
+        };
+      });
+
+      // Прогресс по курсу
+      const progress =
+        totalLessons === 0
+          ? 0
+          : Math.round((lessonsWithAccess / totalLessons) * 100);
 
       return {
         id: course.id,
         title: course.title,
         url: course.url,
         access: hasCourseAccess,
-        progress, // <-- добавлено новое поле
+        progress,
         modules,
+        lessons: courseLessons, // ⬅️ Добавляем уроки курса
       };
     });
 
@@ -271,7 +351,7 @@ export class UserService {
         page,
         totalPages,
         limit,
-        activeStudentsCount: students.filter((s) => s.isActive).length,
+        activeStudentsCount: allStudents.filter((s) => s.isActive).length,
       },
     };
   }

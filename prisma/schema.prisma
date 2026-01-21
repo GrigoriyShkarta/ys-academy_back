@@ -94,28 +94,29 @@ model UserLessonAccess {
 }
 
 model Module {
-  id          Int        @id @default(autoincrement())
-  title       String
-  publicImgId String?
-  url         String?
-  lessons     Lesson[]   @relation("ModuleLessons")
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  categories  Category[] @relation("ModuleCategories")
-  courses     Course[]   @relation("CourseModules")
-
+  id            Int            @id @default(autoincrement())
+  title         String
+  publicImgId   String?
+  url           String?
+  lessons       Lesson[]       @relation("ModuleLessons")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  categories    Category[]     @relation("ModuleCategories")
+  courses       Course[]       @relation("CourseModules")
   moduleLessons ModuleLesson[]
 }
 
 model Course {
-  id          Int        @id @default(autoincrement())
-  url         String?
-  publicImgId String?
-  title       String
-  categories  Category[] @relation("CourseCategories")
-  modules     Module[]   @relation("CourseModules")
-  createdAt   DateTime?  @default(now())
-  updatedAt   DateTime?  @updatedAt
+  id            Int            @id @default(autoincrement())
+  url           String?
+  publicImgId   String?
+  title         String
+  categories    Category[]     @relation("CourseCategories")
+  modules       Module[]       @relation("CourseModules")
+  lessons       Lesson[]       @relation("CourseLessons")
+  courseLessons CourseLesson[]
+  createdAt     DateTime?      @default(now())
+  updatedAt     DateTime?      @updatedAt
 }
 
 model Lesson {
@@ -127,8 +128,10 @@ model Lesson {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   modules     Module[] @relation("ModuleLessons")
+  courses     Course[] @relation("CourseLessons")
 
   moduleLessons ModuleLesson[]
+  courseLessons CourseLesson[]
 
   userLessonAccesses UserLessonAccess[]
   categories         Category[]         @relation("LessonCategories")
@@ -136,6 +139,19 @@ model Lesson {
   audios Audio[] @relation("AudioLessons")
   photos Photo[] @relation("PhotoLessons")
   videos Video[] @relation("VideoLessons")
+}
+
+model CourseLesson {
+  id       Int @id @default(autoincrement())
+  courseId Int
+  lessonId Int
+
+  order Int
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, order])
 }
 
 model ModuleLesson {

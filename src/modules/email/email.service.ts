@@ -56,7 +56,7 @@ export class EmailService {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           }
           .email-header {
-            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            background: linear-gradient(to bottom, #111827, #1f2937);
             padding: 40px 30px;
             text-align: center;
             color: #ffffff;
@@ -113,18 +113,17 @@ export class EmailService {
             font-size: 16px;
           }
           .email-footer {
-            background-color: #f7fafc;
+            background: linear-gradient(to bottom, #111827, #1f2937);
             padding: 30px;
             text-align: center;
             border-top: 1px solid #e2e8f0;
           }
           .email-footer p {
-            color: #718096;
+            color: white;
             font-size: 14px;
             margin: 5px 0;
           }
           .email-footer .brand {
-            color: #1a365d;
             font-weight: 600;
             font-size: 16px;
           }
@@ -143,6 +142,7 @@ export class EmailService {
           </div>
           <div class="email-footer">
             <img src="cid:ys-vocal-academy-logo" alt="YS Vocal Academy logo" style="width:60px;display:block;margin:0 auto 6px auto;">
+            <p>з турботою про ваш вокальний розвиток</p>
             <p class="brand">YS Vocal Academy</p>
           </div>
         </div>
@@ -176,7 +176,7 @@ export class EmailService {
       );
 
       const mailOptions: nodemailer.SendMailOptions = {
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        from: process.env.SMTP_FROM,
         to,
         subject,
         html,
@@ -205,7 +205,6 @@ export class EmailService {
     taskTitle: string,
   ): Promise<void> {
     try {
-      console.log('sendMessage');
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         select: { email: true, name: true },
@@ -223,6 +222,9 @@ export class EmailService {
           <strong>${taskTitle}</strong>
         </div>
         <p>Будь ласка, перевірте свій трекер для отримання детальної інформації.</p>
+        <a href="https://ys-academy.vercel.app/main/tracker" style="display:block; width: fit-content; margin: 25px auto 0; background-color:#0b1f3a; color:#ffffff; text-decoration:none; padding:14px 22px; border-radius:6px; font-size:15px;">
+            Перейти до трекера
+        </a>
       `;
 
       const html = this.generateEmailTemplate(
@@ -259,6 +261,9 @@ export class EmailService {
       const content = `
         <p>Вам було додано новий запис до уроку.</p>
         <p>Перегляньте його в особистому кабінеті.</p>
+        <a href="https://ys-academy.vercel.app/main/lesson-recordings" style="display:block; width: fit-content; margin: 25px auto 0; background-color:#0b1f3a; color:#ffffff; text-decoration:none; padding:14px 22px; border-radius:6px; font-size:15px;">
+            Перейти до записів уроків
+        </a>
       `;
 
       const html = this.generateEmailTemplate(
@@ -317,6 +322,9 @@ export class EmailService {
         </div>
         <p>Тепер ви можете переглянути ${lessonTitles.length === 1 ? 'цей урок' : 'ці уроки'} у своєму особистому кабінеті.</p>
         <p>Не забудьте увійти в систему та почати навчання!</p>
+        <a href="https://ys-academy.vercel.app/main/courses" style="display:block; width: fit-content; margin: 25px auto 0; background-color:#0b1f3a; color:#ffffff; text-decoration:none; padding:14px 22px; border-radius:6px; font-size:15px;">
+            Перейти до курсів
+        </a>
       `;
 
       const html = this.generateEmailTemplate(

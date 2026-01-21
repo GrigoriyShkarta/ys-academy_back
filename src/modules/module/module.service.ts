@@ -281,6 +281,7 @@ export class ModuleService {
       id: module.id,
       title: module.title,
       categories: module.categories,
+      url: module?.url,
       lessons: lessonsWithAccess,
     };
   }

@@ -22,4 +22,11 @@ export class CourseDto {
     id: number;
     index: number;
   }[];
+
+  @IsArray()
+  @IsOptional()
+  lessons?: {
+    id: number;
+    order: number;
+  }[];
 }

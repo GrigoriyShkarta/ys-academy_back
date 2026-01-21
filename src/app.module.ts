@@ -14,6 +14,7 @@ import { CategoryModule } from './modules/category/category.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TrackersModule } from './modules/trackers/trackers.module';
 import { EmailModule } from './modules/email/email.module';
+import { BoardSyncGateway } from './board-sync.gateway';
 
 @Module({
   imports: [
@@ -32,6 +33,6 @@ import { EmailModule } from './modules/email/email.module';
     EmailModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, BoardSyncGateway],
 })
 export class AppModule {}

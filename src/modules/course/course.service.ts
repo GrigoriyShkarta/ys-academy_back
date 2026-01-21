@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { CourseDto } from './dto/course.dto';
@@ -11,6 +16,11 @@ export class CourseService {
   ) {}
 
   async createCourse(data: CourseDto) {
+    const lessonsPayload = data.lessons ?? [];
+    const sortedLessons = [...lessonsPayload].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0),
+    );
+
     await this.prisma.course.create({
       data: {
         title: data.title,
@@ -26,8 +36,17 @@ export class CourseService {
               connect: data.modules.map((m) => ({ id: m.id })),
             }
           : undefined,
+        courseLessons: sortedLessons.length
+          ? {
+              create: sortedLessons.map((lesson, idx) => ({
+                lesson: { connect: { id: lesson.id } },
+                order: lesson.order ?? idx,
+              })),
+            }
+          : undefined,
       },
-    });
+      // типы старые – приводим к any, чтобы не ругался TS
+    } as any);
 
     return true;
   }
@@ -48,8 +67,7 @@ export class CourseService {
         : undefined),
     };
 
-    return this.prisma.course.findMany({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const courses = (await this.prisma.course.findMany({
       where,
       include: {
         modules: {
@@ -60,9 +78,30 @@ export class CourseService {
             categories: { select: { id: true, title: true, color: true } },
           },
         },
+        courseLessons: {
+          orderBy: { order: 'asc' },
+          include: {
+            lesson: {
+              select: {
+                id: true,
+                title: true,
+                categories: { select: { id: true, title: true, color: true } },
+              },
+            },
+          },
+        },
         categories: { select: { id: true, title: true, color: true } },
       },
-    });
+    } as any)) as any[];
+
+    // Возвращаем lessons, отсортированные по order
+    return courses.map((course) => ({
+      ...course,
+      lessons: course.courseLessons.map((cl) => ({
+        ...cl.lesson,
+        order: cl.order,
+      })),
+    }));
   }
 
   async updateCourse(id: number, data: CourseDto) {
@@ -78,43 +117,64 @@ export class CourseService {
       await this.fileService.deleteFile(course.publicImgId, 'image');
     }
 
-    await this.prisma.course.update({
-      where: { id },
-      data: {
-        title: data.title ?? undefined,
-        url: data.url ?? undefined,
+    const lessonsPayload = data.lessons ?? [];
+    const sortedLessons = [...lessonsPayload].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0),
+    );
 
-        // --- категории ---
-        categories: {
-          set: [],
-          ...(data.categories?.length
-            ? {
-                connect: data.categories.map((categoryId) => ({
-                  id: Number(categoryId),
-                })),
-              }
-            : {}),
-        },
+    await this.prisma.$transaction([
+      this.prisma.course.update({
+        where: { id },
+        data: {
+          title: data.title ?? undefined,
+          url: data.url ?? undefined,
 
-        // --- модули ---
-        modules: {
-          set: [],
-          ...(data.modules?.length
-            ? {
-                connect: data.modules.map((module) => ({
-                  id: module.id,
-                })),
-              }
-            : {}),
+          // --- категории ---
+          categories: {
+            set: [],
+            ...(data.categories?.length
+              ? {
+                  connect: data.categories.map((categoryId) => ({
+                    id: Number(categoryId),
+                  })),
+                }
+              : {}),
+          },
+
+          // --- модули ---
+          modules: {
+            set: [],
+            ...(data.modules?.length
+              ? {
+                  connect: data.modules.map((module) => ({
+                    id: module.id,
+                  })),
+                }
+              : {}),
+          },
         },
-      },
-    });
+      }) as any,
+
+      // Полностью пересобираем courseLessons по order
+      this.prisma.courseLesson.deleteMany({ where: { courseId: id } }) as any,
+      ...(sortedLessons.length
+        ? [
+            this.prisma.courseLesson.createMany({
+              data: sortedLessons.map((lesson, idx) => ({
+                courseId: id,
+                lessonId: lesson.id,
+                order: lesson.order ?? idx,
+              })),
+            }) as any,
+          ]
+        : []),
+    ]);
 
     return { access: true };
   }
 
   async getCourse(id: number, userId?: number) {
-    const course = await this.prisma.course.findUnique({
+    const course = (await this.prisma.course.findUnique({
       where: { id },
       include: {
         categories: {
@@ -126,7 +186,6 @@ export class CourseService {
               select: { id: true, title: true, color: true },
             },
             moduleLessons: {
-              orderBy: { order: 'asc' },
               include: {
                 lesson: {
                   select: {
@@ -139,34 +198,59 @@ export class CourseService {
                   },
                 },
               },
+              orderBy: { order: 'asc' },
+            },
+          },
+        },
+        courseLessons: {
+          orderBy: { order: 'asc' },
+          include: {
+            lesson: {
+              select: {
+                id: true,
+                title: true,
+                categories: {
+                  select: { id: true, title: true, color: true },
+                },
+                content: true,
+              },
             },
           },
         },
       },
-    });
+    } as any)) as any;
 
     if (!course) {
       throw new Error('Course not found');
     }
 
-    // Собираем все lessonId курса
-    const lessonIds = course.modules.flatMap((module) =>
-      module.moduleLessons.map((ml) => ml.lesson.id),
-    );
+    // Получаем пользователя и проверяем его роль
+    let isSuperAdmin = false;
+    if (userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      isSuperAdmin = user?.role === 'super_admin';
+    }
 
-    // Получаем доступы пользователя (если userId есть)
-    const accesses = userId
-      ? await this.prisma.userLessonAccess.findMany({
-          where: {
-            userId,
-            lessonId: { in: lessonIds },
-          },
-          select: {
-            lessonId: true,
-            blocks: true,
-          },
-        })
-      : [];
+    // Собираем все lessonId курса
+    const lessonIds = course.courseLessons.map((cl) => cl.lesson.id);
+
+    // Получаем доступы пользователя (если userId есть и не super_admin)
+    const accesses =
+      userId && !isSuperAdmin
+        ? await this.prisma.userLessonAccess.findMany({
+            where: {
+              userId,
+              lessonId: { in: lessonIds },
+            },
+            select: {
+              lessonId: true,
+              blocks: true,
+            },
+          })
+        : [];
 
     // Map lessonId -> number[] (blockIds)
     const accessMap = new Map<number, number[]>();
@@ -199,14 +283,21 @@ export class CourseService {
         totalLessons++;
 
         const totalBlocks = normalizeBlocks(lesson.content);
-        const availableBlocks = accessMap.get(lesson.id) ?? [];
 
-        const hasAccess = userId ? availableBlocks.length > 0 : true;
+        // Если super_admin - даем доступ ко всем блокам
+        const availableBlocks = isSuperAdmin
+          ? totalBlocks
+          : (accessMap.get(lesson.id) ?? []);
+
+        // Проверка доступа
+        const hasAccess =
+          isSuperAdmin || (userId ? availableBlocks.length > 0 : true);
 
         if (hasAccess) lessonsWithAccess++;
 
-        const accessString =
-          userId != null
+        const accessString = isSuperAdmin
+          ? `${totalBlocks.length}/${totalBlocks.length}`
+          : userId != null
             ? `${availableBlocks.length}/${totalBlocks.length}`
             : `${totalBlocks.length}/${totalBlocks.length}`;
 
@@ -218,13 +309,13 @@ export class CourseService {
       });
 
       const progress =
-        userId == null
+        isSuperAdmin || userId == null
           ? 100
           : totalLessons === 0
             ? 0
             : Math.round((lessonsWithAccess / totalLessons) * 100);
 
-      const moduleAccess = lessonsWithAccess > 0;
+      const moduleAccess = isSuperAdmin || lessonsWithAccess > 0;
 
       return {
         id: module.id,
@@ -232,8 +323,35 @@ export class CourseService {
         url: module.url,
         categories: module.categories,
         progress,
-        access: moduleAccess, // <-- важное поле
+        access: moduleAccess,
         lessons,
+      };
+    });
+
+    // Обрабатываем уроки курса (не в модулях)
+    const courseLessonsWithAccess = course.courseLessons.map((cl) => {
+      const lesson = cl.lesson;
+      const totalBlocks = normalizeBlocks(lesson.content);
+
+      // Если super_admin - даем доступ ко всем блокам
+      const availableBlocks = isSuperAdmin
+        ? totalBlocks
+        : (accessMap.get(lesson.id) ?? []);
+
+      const hasAccess =
+        isSuperAdmin || (userId ? availableBlocks.length > 0 : true);
+
+      const accessString = isSuperAdmin
+        ? `${totalBlocks.length}/${totalBlocks.length}`
+        : userId != null
+          ? `${availableBlocks.length}/${totalBlocks.length}`
+          : `${totalBlocks.length}/${totalBlocks.length}`;
+
+      return {
+        ...lesson,
+        order: cl.order,
+        access: hasAccess,
+        accessBlocks: accessString,
       };
     });
 
@@ -243,6 +361,7 @@ export class CourseService {
       url: course.url,
       categories: course.categories,
       modules: modulesWithLessonsAccess,
+      lessons: courseLessonsWithAccess,
     };
   }
 

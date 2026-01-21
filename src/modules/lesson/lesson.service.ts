@@ -584,9 +584,26 @@ export class LessonService {
       throw new BadRequestException('Some users not found');
     }
 
-    // 2. Загружаем уроки и нормализуем content → blockId[]
+    // 2. Загружаем существующие доступы ДО изменений
     const lessonIds = lessons.map((l) => +l.id);
 
+    const existingAccesses = await this.prisma.userLessonAccess.findMany({
+      where: {
+        userId: { in: studentIds },
+        lessonId: { in: lessonIds },
+      },
+      select: {
+        userId: true,
+        lessonId: true,
+      },
+    });
+
+    // Создаем Set для быстрой проверки существующих доступов
+    const existingAccessSet = new Set(
+      existingAccesses.map((a) => `${a.userId}-${a.lessonId}`),
+    );
+
+    // 3. Загружаем уроки и нормализуем content → blockId[]
     const lessonRecords = await this.prisma.lesson.findMany({
       where: { id: { in: lessonIds } },
       select: { id: true, content: true },
@@ -619,14 +636,15 @@ export class LessonService {
       lessonMap.set(lr.id, normalized);
     }
 
-    // 3. Обрабатываем payload
+    // 4. Обрабатываем payload
     const data: Prisma.UserLessonAccessCreateManyInput[] = [];
+    const newAccesses: Prisma.UserLessonAccessCreateManyInput[] = []; // ⬅️ ТОЛЬКО НОВЫЕ доступы
 
     for (const user of users) {
       for (const payload of lessons) {
         const lessonId = +payload.id;
 
-        // 3.1. Если стоит remove: true → удаляем доступ и пропускаем создание
+        // 4.1. Если стоит remove: true → удаляем доступ и пропускаем создание
         if (payload.remove === true) {
           await this.prisma.userLessonAccess.deleteMany({
             where: { userId: user.id, lessonId },
@@ -634,7 +652,7 @@ export class LessonService {
           continue;
         }
 
-        // 3.2. Даем доступ (частично или полностью)
+        // 4.2. Даем доступ (частично или полностью)
         const lessonContent = lessonMap.get(lessonId);
         if (!lessonContent) continue;
 
@@ -644,8 +662,6 @@ export class LessonService {
 
         if (Array.isArray(payload.blocks)) {
           if (payload.blocks.length === 0) {
-            // пустой массив blocks теперь НЕ означает удаление
-            // потому что delete делаем только через remove:true
             continue;
           }
 
@@ -665,15 +681,23 @@ export class LessonService {
           blocksToStore = [...availableBlockIds];
         }
 
-        data.push({
+        const accessData = {
           userId: user.id,
           lessonId,
           blocks: blocksToStore,
-        });
+        };
+
+        data.push(accessData);
+
+        // ⬇️ Проверяем, является ли доступ НОВЫМ
+        const accessKey = `${user.id}-${lessonId}`;
+        if (!existingAccessSet.has(accessKey)) {
+          newAccesses.push(accessData); // ⬅️ Это новый доступ!
+        }
       }
     }
 
-    // 4. Если replaceAll = true → удаляем ВСЕ доступы студентов, но только для lessonIds
+    // 5. Если replaceAll = true → удаляем ВСЕ доступы студентов, но только для lessonIds
     if (replaceAll && lessonIds.length) {
       await this.prisma.userLessonAccess.deleteMany({
         where: {
@@ -682,8 +706,7 @@ export class LessonService {
         },
       });
     } else {
-      // если replaceAll = false, удяляем только конкретные уроки из payload,
-      // но только если remove != true
+      // если replaceAll = false, удаляем только конкретные уроки из payload
       const idsToDelete = lessons
         .filter((l) => l.remove !== true)
         .map((l) => +l.id);
@@ -698,54 +721,62 @@ export class LessonService {
       }
     }
 
-    // 5. Создаем новые доступы
+    // 6. Создаем новые доступы
     if (data.length) {
       await this.prisma.userLessonAccess.createMany({
         data,
         skipDuplicates: true,
       });
 
-      // Получаем информацию об уроках для отправки email
-      const uniqueLessonIds = Array.from(new Set(data.map((d) => d.lessonId)));
-      const lessons = await this.prisma.lesson.findMany({
-        where: { id: { in: uniqueLessonIds } },
-        select: { id: true, title: true },
-      });
+      // ⬇️ ИЗМЕНЕНИЕ: Отправляем email ТОЛЬКО о НОВЫХ уроках
+      if (newAccesses.length > 0) {
+        // Получаем информацию ТОЛЬКО о новых уроках
+        const newLessonIds = Array.from(
+          new Set(newAccesses.map((d) => d.lessonId)),
+        );
+        const newLessons = await this.prisma.lesson.findMany({
+          where: { id: { in: newLessonIds } },
+          select: { id: true, title: true },
+        });
 
-      const lessonMap = new Map(lessons.map((l) => [l.id, l.title]));
+        const newLessonMap = new Map(newLessons.map((l) => [l.id, l.title]));
 
-      // Группируем доступы по пользователям
-      const accessByUser = new Map<number, number[]>();
-      for (const access of data) {
-        if (!accessByUser.has(access.userId)) {
-          accessByUser.set(access.userId, []);
+        // Группируем НОВЫЕ доступы по пользователям
+        const newAccessByUser = new Map<number, number[]>();
+        for (const access of newAccesses) {
+          if (!newAccessByUser.has(access.userId)) {
+            newAccessByUser.set(access.userId, []);
+          }
+          newAccessByUser.get(access.userId)!.push(access.lessonId);
         }
-        accessByUser.get(access.userId)!.push(access.lessonId);
-      }
 
-      // Отправляем email для каждого пользователя со списком всех уроков
-      for (const [userId, lessonIds] of accessByUser.entries()) {
-        // Собираем названия всех уроков для этого пользователя
-        const lessonTitles = lessonIds
-          .map((lessonId) => lessonMap.get(lessonId))
-          .filter((title): title is string => !!title);
+        // Отправляем email для каждого пользователя со списком НОВЫХ уроков
+        for (const [userId, lessonIds] of newAccessByUser.entries()) {
+          const lessonTitles = lessonIds
+            .map((lessonId) => newLessonMap.get(lessonId))
+            .filter((title): title is string => !!title);
 
-        if (lessonTitles.length > 0) {
-          await this.emailService.sendLessonAccessNotification(
-            userId,
-            lessonTitles,
-          );
+          if (lessonTitles.length > 0) {
+            await this.emailService.sendLessonAccessNotification(
+              userId,
+              lessonTitles,
+            );
+          }
+        }
+
+        // Создаем уведомления ТОЛЬКО для пользователей с новыми доступами
+        const usersWithNewAccess = Array.from(newAccessByUser.keys());
+        if (usersWithNewAccess.length > 0) {
+          await this.prisma.notification.createMany({
+            data: usersWithNewAccess.map((userId) => ({
+              userId,
+              title: 'new_lesson',
+            })),
+          });
         }
       }
     }
 
-    await this.prisma.notification.createMany({
-      data: studentIds.map((studentId) => ({
-        userId: studentId,
-        title: 'new_lesson',
-      })),
-    });
-
-    return { success: true, granted: data.length };
+    return { success: true, granted: data.length, new: newAccesses.length };
   }
 }
