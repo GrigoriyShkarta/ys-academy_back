@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { CourseDto } from './dto/course.dto';
 import { FileService } from '../file/file.service';
@@ -400,5 +400,30 @@ export class CourseService {
     }
 
     await this.prisma.course.delete({ where: { id } });
+  }
+
+  async reorderCourses(courses: { id: number; order: number }[]) {
+    // Проверяем, что все курсы существуют
+    const courseIds = courses.map((c) => c.id);
+    const existingCourses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      select: { id: true },
+    });
+
+    if (existingCourses.length !== courseIds.length) {
+      throw new BadRequestException('Some courses not found');
+    }
+
+    // Обновляем порядок в транзакции
+    await this.prisma.$transaction(
+      courses.map((course) =>
+        this.prisma.course.update({
+          where: { id: course.id },
+          data: { order: course.order },
+        }),
+      ),
+    );
+
+    return { success: true };
   }
 }

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -72,5 +73,12 @@ export class CourseController {
   @Roles('admin', 'super_admin')
   async deleteModule(@Param('id') id: number) {
     return this.courseService.deleteCourse(id);
+  }
+
+  @Patch('reorder')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'super_admin')
+  reorderCourses(@Body() courses: { id: number; order: number }[]) {
+    return this.courseService.reorderCourses(courses);
   }
 }

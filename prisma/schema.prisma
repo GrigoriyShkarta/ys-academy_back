@@ -108,6 +108,7 @@ model Module {
 
 model Course {
   id            Int            @id @default(autoincrement())
+  order         Int            @default(autoincrement())
   url           String?
   publicImgId   String?
   title         String
