@@ -1,3 +1,4 @@
+// src/modules/board/board-sync.gateway.ts
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -6,6 +7,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { BoardService } from './modules/boards/board.service';
 
 @WebSocketGateway({
   namespace: 'board-sync',
@@ -25,31 +27,46 @@ export class BoardSyncGateway
   @WebSocketServer()
   server: Server;
 
-  handleConnection(client: Socket) {
-    const { roomId } = client.handshake.query as {
+  constructor(private readonly boardService: BoardService) {}
+
+  async handleConnection(client: Socket) {
+    const { roomId, userId } = client.handshake.query as {
       roomId?: string;
       userId?: string;
     };
 
     if (!roomId) {
-      void client.disconnect();
+      client.disconnect();
       return;
     }
 
     const roomName = `room-${roomId}`;
-    void client.join(roomName);
+    await client.join(roomName);
 
-    // Можно логировать при необходимости
-    // console.log(`User ${userId} joined room ${roomId}`);
+    // Отправляем текущее состояние доски клиенту
+    try {
+      const records = await this.boardService.getBoardRecords(roomId);
+      client.emit('init', records);
+      console.log(
+        `✅ User ${userId} joined room ${roomId}, sent ${records.length} records`,
+      );
+    } catch (error) {
+      console.error(`❌ Error loading board for room ${roomId}:`, error);
+      client.emit('init', []); // Отправляем пустую доску в случае ошибки
+    }
   }
 
-  handleDisconnect(): void {
-    // Здесь можно добавить логику при отключении клиента при необходимости
+  handleDisconnect(client: Socket) {
+    const { roomId, userId } = client.handshake.query as {
+      roomId?: string;
+      userId?: string;
+    };
+    console.log(`👋 User ${userId} left room ${roomId}`);
   }
 
-  // Получаем локальные изменения и рассылаем всем, кроме отправителя
+  // Получаем изменения и сохраняем в БД + рассылаем всем
   @SubscribeMessage('update')
-  handleUpdate(client: Socket, payload: any) {
+  async handleUpdate(client: Socket, payload: any) {
     const { roomId, userId } = client.handshake.query as {
       roomId?: string;
       userId?: string;
@@ -58,32 +75,32 @@ export class BoardSyncGateway
 
     const roomName = `room-${roomId}`;
 
-    client.to(roomName).emit('update', {
-      ...payload,
-      userId,
-    });
+    try {
+      // ⬇️ ИСПРАВЛЕНИЕ: Flatten если payload это вложенный массив
+      let records = Array.isArray(payload) ? payload : [payload];
+
+      // Если первый элемент тоже массив - flatten
+      if (records.length > 0 && Array.isArray(records[0])) {
+        records = records.flat();
+      }
+
+      console.log('📥 Received update:', records.length, 'records');
+
+      // Сохраняем в БД
+      await this.boardService.updateBoardRecords(roomId, records);
+
+      // Рассылаем всем, кроме отправителя
+      client.to(roomName).emit('update', records);
+
+      console.log(`💾 Updated ${records.length} records in room ${roomId}`);
+    } catch (error) {
+      console.error(`❌ Error updating board ${roomId}:`, error);
+    }
   }
 
-  // Инициализация состояния доски (если фронт это использует)
-  @SubscribeMessage('init')
-  handleInit(client: Socket, payload: any) {
-    const { roomId, userId } = client.handshake.query as {
-      roomId?: string;
-      userId?: string;
-    };
-    if (!roomId) return;
-
-    const roomName = `room-${roomId}`;
-
-    client.to(roomName).emit('init', {
-      ...payload,
-      userId,
-    });
-  }
-
-  // Удаление элементов доски (например, блоков/объектов)
+  // Удаление элементов доски
   @SubscribeMessage('delete')
-  handleDelete(client: Socket, payload: any) {
+  async handleDelete(client: Socket, payload: any) {
     const { roomId, userId } = client.handshake.query as {
       roomId?: string;
       userId?: string;
@@ -92,10 +109,49 @@ export class BoardSyncGateway
 
     const roomName = `room-${roomId}`;
 
-    // рассылаем всем в комнате, кроме отправителя
-    client.to(roomName).emit('delete', {
-      ...payload,
-      userId,
-    });
+    try {
+      // Payload должен быть массивом ID: string[]
+      const recordIds = Array.isArray(payload) ? payload : [payload];
+
+      // Удаляем из БД
+      await this.boardService.deleteBoardRecords(roomId, recordIds);
+
+      // Рассылаем всем, кроме отправителя
+      client.to(roomName).emit('delete', recordIds);
+
+      console.log(`🗑️ Deleted ${recordIds.length} records from room ${roomId}`);
+    } catch (error) {
+      console.error(`❌ Error deleting from board ${roomId}:`, error);
+    }
+  }
+
+  // Клиент запрашивает текущее состояние доски
+  @SubscribeMessage('get-board')
+  async handleGetBoard(client: Socket, payload: { roomId: string }) {
+    try {
+      const records = await this.boardService.getBoardRecords(payload.roomId);
+      client.emit('init', records);
+      console.log(
+        `📤 Sent ${records.length} records to client for room ${payload.roomId}`,
+      );
+    } catch (error) {
+      console.error(`❌ Error fetching board ${payload.roomId}:`, error);
+      client.emit('init', []);
+    }
+  }
+
+  // Обработка движения курсора (без сохранения в БД)
+  @SubscribeMessage('cursor')
+  handleCursor(client: Socket, payload: any) {
+    const { roomId } = client.handshake.query as {
+      roomId?: string;
+      userId?: string;
+    };
+    if (!roomId) return;
+
+    const roomName = `room-${roomId}`;
+
+    // Рассылаем всем, кроме отправителя
+    client.to(roomName).emit('cursor', payload);
   }
 }

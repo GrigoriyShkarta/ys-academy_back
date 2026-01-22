@@ -15,6 +15,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { TrackersModule } from './modules/trackers/trackers.module';
 import { EmailModule } from './modules/email/email.module';
 import { BoardSyncGateway } from './board-sync.gateway';
+import { BoardModule } from './modules/boards/board.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { BoardSyncGateway } from './board-sync.gateway';
     SubscriptionsModule,
     TrackersModule,
     EmailModule,
+    BoardModule,
   ],
   controllers: [AppController],
   providers: [AppService, BoardSyncGateway],

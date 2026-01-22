@@ -336,3 +336,16 @@ model TrackerSubtask {
 
   @@index([taskId])
 }
+
+model BoardRecord {
+  id        Int      @id @default(autoincrement())
+  roomId    String // Board or Student ID
+  recordId  String // tldraw record ID
+  content   Json // tldraw record data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([roomId, recordId])
+  @@index([roomId])
+  @@map("board_records")
+}
