@@ -30,87 +30,23 @@ export class BoardService {
    * Обновить или создать записи (UPSERT) с обработкой файлов
    */
   async updateBoardRecords(roomId: string, records: any[]) {
-    // 1. Приводим к плоскому массиву
     const flatRecords = Array.isArray(records[0]) ? records.flat() : records;
 
-    console.log('💾 Incoming records:', flatRecords.length);
+    console.log('💾 Saving records:', flatRecords);
 
-    // 2. Обрабатываем ТОЛЬКО assets с base64
-    const processedRecords = await Promise.all(
-      flatRecords.map(async (record) => {
-        console.log('record', record);
-        const isAsset =
-          record?.typeName === 'asset' &&
-          typeof record?.props?.src === 'string';
-        console.log('isAsset', isAsset);
-        const isBase64 = isAsset && record.props.src.startsWith('data:');
-        console.log('isBase64', isBase64);
-        if (!isBase64) {
-          return record;
-        }
-
-        console.log(`📤 Uploading asset: ${record.id}`);
-
-        try {
-          const [meta, base64] = record.props.src.split(',');
-          const buffer = Buffer.from(base64, 'base64');
-
-          const mimeType =
-            record.props.mimeType ||
-            meta.match(/data:(.*?);base64/)?.[1] ||
-            'application/octet-stream';
-
-          const extension = mimeType.split('/')[1] ?? 'bin';
-
-          const file: Express.Multer.File = {
-            buffer,
-            originalname: record.props.name || `${record.id}.${extension}`,
-            mimetype: mimeType,
-            size: buffer.length,
-            fieldname: 'file',
-            encoding: '7bit',
-          } as Express.Multer.File;
-
-          const uploadResult = await this.fileService.uploadFile(
-            file,
-            record.type, // image | video
-            true,
-          );
-
-          console.log(`✅ Uploaded ${record.type}: ${uploadResult.public_id}`);
-
-          // 3. Возвращаем обновлённый asset
-          return {
-            ...record,
-            props: {
-              ...record.props,
-              src: uploadResult.secure_url, // <-- URL вместо base64
-            },
-            meta: {
-              ...record.meta,
-              publicId: uploadResult.public_id,
-            },
-          };
-        } catch (error) {
-          console.error(`❌ Failed to upload asset ${record.id}:`, error);
-          return record;
-        }
-      }),
-    );
-
-    // 4. Сохраняем ВСЕ records (и assets, и shapes)
+    // Просто сохраняем все записи как есть
     await this.prisma.$transaction(
-      processedRecords.map((record) =>
+      flatRecords.map((record) =>
         this.prisma.boardRecord.upsert({
           where: {
             roomId_recordId: {
               roomId,
-              recordId: record.id,
+              recordId: record.id as string,
             },
           },
           create: {
             roomId,
-            recordId: record.id,
+            recordId: record.id as string,
             content: record,
           },
           update: {
@@ -123,8 +59,29 @@ export class BoardService {
 
     return {
       success: true,
-      updated: processedRecords.length,
+      updated: flatRecords.length,
     };
+  }
+
+  async uploadFile(file: Express.Multer.File) {
+    try {
+      const fileType = this.getFileTypeFromMime(file.mimetype);
+
+      // Загружаем в Cloudinary
+      const uploadResult = await this.fileService.uploadFile(
+        file,
+        fileType,
+        true, // isOther = true
+      );
+
+      return {
+        src: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+      };
+    } catch (e) {
+      console.error('Error uploading file:', e);
+      return null;
+    }
   }
 
   /**
@@ -145,32 +102,77 @@ export class BoardService {
       },
     });
 
-    // Проверяем каждую запись на наличие publicId
+    const assetIdsToDelete = new Set<string>();
+    const recordIdsToDelete = new Set<string>(recordIds);
+
+    // Проходим по всем записям
     for (const record of records) {
       const content = record.content as any;
 
-      // Проверяем, есть ли publicId в meta
-      if (content?.meta?.publicId) {
-        try {
-          const fileType = this.getFileTypeFromPublicId(content.meta.publicId);
-          await this.fileService.deleteFile(content.meta.publicId, fileType);
-          console.log(
-            `✅ Deleted file from Cloudinary: ${content.meta.publicId}`,
-          );
-        } catch (error) {
-          console.error(
-            `❌ Error deleting file ${content.meta.publicId}:`,
-            error,
-          );
+      // Если это shape с изображением/видео
+      if (
+        content?.typeName === 'shape' &&
+        (content.type === 'image' || content.type === 'video') &&
+        content.props?.assetId
+      ) {
+        console.log(
+          `🔗 Shape ${content.id} references asset ${content.props.assetId}`,
+        );
+        // Запоминаем assetId для удаления
+        assetIdsToDelete.add(content.props.assetId);
+        recordIdsToDelete.add(content.props.assetId);
+      }
+
+      // Если это asset с publicId
+      if (content?.typeName === 'asset' && content?.meta?.publicId) {
+        console.log(
+          `📎 Found asset ${content.id} with publicId ${content.meta.publicId}`,
+        );
+        assetIdsToDelete.add(content.id);
+      }
+    }
+
+    // Получаем все assets для удаления
+    if (assetIdsToDelete.size > 0) {
+      const assets = await this.prisma.boardRecord.findMany({
+        where: {
+          roomId,
+          recordId: { in: Array.from(assetIdsToDelete) },
+        },
+        select: {
+          recordId: true,
+          content: true,
+        },
+      });
+
+      // Удаляем файлы из Cloudinary
+      for (const asset of assets) {
+        const content = asset.content as any;
+
+        if (content?.meta?.publicId) {
+          try {
+            const fileType = this.getFileTypeFromPublicId(
+              content.meta.publicId,
+            );
+            await this.fileService.deleteFile(content.meta.publicId, fileType);
+            console.log(
+              `✅ Deleted file from Cloudinary: ${content.meta.publicId}`,
+            );
+          } catch (error) {
+            console.error(
+              `❌ Error deleting file ${content.meta.publicId}:`,
+              error,
+            );
+          }
         }
       }
     }
 
-    // Удаляем записи из БД
+    // Удаляем все записи (shapes и assets) из БД
     const result = await this.prisma.boardRecord.deleteMany({
       where: {
         roomId,
-        recordId: { in: recordIds },
+        recordId: { in: Array.from(recordIdsToDelete) },
       },
     });
 
@@ -182,48 +184,6 @@ export class BoardService {
   /**
    * Удалить всю доску и все файлы
    */
-  async deleteBoard(roomId: string) {
-    console.log(`🗑️ Deleting board: ${roomId}`);
-
-    // Получаем все записи доски
-    const records = await this.prisma.boardRecord.findMany({
-      where: { roomId },
-      select: {
-        recordId: true,
-        content: true,
-      },
-    });
-
-    let deletedFiles = 0;
-
-    // Удаляем файлы из Cloudinary
-    for (const record of records) {
-      const content = record.content as any;
-
-      if (content?.meta?.publicId) {
-        try {
-          const fileType = this.getFileTypeFromPublicId(content.meta.publicId);
-          await this.fileService.deleteFile(content.meta.publicId, fileType);
-          deletedFiles++;
-          console.log(`✅ Deleted file: ${content.meta.publicId}`);
-        } catch (error) {
-          console.error(
-            `❌ Error deleting file ${content.meta.publicId}:`,
-            error,
-          );
-        }
-      }
-    }
-
-    // Удаляем все записи доски
-    await this.prisma.boardRecord.deleteMany({
-      where: { roomId },
-    });
-
-    console.log(`🗑️ Deleted board ${roomId} with ${deletedFiles} files`);
-
-    return { success: true, deletedRecords: records.length, deletedFiles };
-  }
 
   /**
    * Определить тип файла по publicId
@@ -231,6 +191,14 @@ export class BoardService {
   private getFileTypeFromPublicId(publicId: string): 'image' | 'video' | 'raw' {
     if (publicId.includes('/images/')) return 'image';
     if (publicId.includes('/videos/')) return 'video';
+    if (publicId.includes('/audio/')) return 'video';
+    return 'raw';
+  }
+
+  private getFileTypeFromMime(mimetype: string): 'image' | 'video' | 'raw' {
+    console.log('mimetype', mimetype);
+    if (mimetype.startsWith('image/')) return 'image';
+    if (mimetype.startsWith('video/')) return 'video';
     return 'raw';
   }
 }
