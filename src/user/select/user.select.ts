@@ -6,6 +6,7 @@ export const userSelect = {
   isActive: true,
   accessExpiryDate: true,
   subscriptions: true,
+  notifications: true,
 };
 
 export const studentSelect = {

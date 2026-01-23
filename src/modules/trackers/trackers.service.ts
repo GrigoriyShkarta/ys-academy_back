@@ -203,6 +203,18 @@ export class TrackersService {
         },
       });
 
+      const user = await this.prisma.user.findUnique({
+        where: { id: dto.userId },
+      });
+
+      // Уведомления для супер админа
+      await this.prisma.notification.create({
+        data: {
+          userId: 1,
+          title: `student_updated_task_column ${user?.name}`,
+        },
+      });
+
       // Пересчитываем order в старой колонке
       await this.reorderTasks(dto.userId, oldColumnId);
 
@@ -350,6 +362,18 @@ export class TrackersService {
             }),
           ),
         );
+
+        const user = await this.prisma.user.findUnique({
+          where: { id: dto.userId },
+        });
+
+        // Уведомления для супер админа
+        await this.prisma.notification.create({
+          data: {
+            userId: 1,
+            title: `student_updated_task_column ${user?.name}`,
+          },
+        });
       }
 
       return { success: true };
