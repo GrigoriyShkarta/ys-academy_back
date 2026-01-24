@@ -20,17 +20,19 @@ async function bootstrap() {
     credentials: true,
   });
 
+  console.log('CORS ENABLED');
+
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // удаляет лишние поля
-      forbidNonWhitelisted: true, // запрещает лишние поля
-      transform: true, // автоматически преобразует объекты в DTO
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
     }),
   );
+  console.log('PIPES SET');
 
   const port = process.env.PORT || 4000;
-
-  // ⬇️ ВАЖНО: Слушать на 0.0.0.0, а не localhost!
   await app.listen(port, '0.0.0.0');
+  console.log('LISTENING ON', port);
 }
 void bootstrap();
