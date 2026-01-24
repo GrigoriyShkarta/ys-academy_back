@@ -28,6 +28,9 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT ?? 4000);
+  const port = process.env.PORT || 4000;
+
+  // ⬇️ ВАЖНО: Слушать на 0.0.0.0, а не localhost!
+  await app.listen(port, '0.0.0.0');
 }
 void bootstrap();
