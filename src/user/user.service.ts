@@ -272,7 +272,6 @@ export class UserService {
     limit?: number;
   }) {
     const { page = 1, search = '', limit = 15 } = params;
-
     const isAll = page === 'all';
     const skip = isAll
       ? undefined

@@ -63,7 +63,8 @@ export class SubscriptionsService {
 
     const subscriptions = await this.prisma.subscription.findMany({
       where,
-      ...(isAll ? {} : { skip, take }),
+      skip: isAll ? undefined : skip, // ⬅️ Более явно
+      take: isAll ? undefined : take, // ⬅️ Более явно
       orderBy: { [orderField]: order },
     });
 

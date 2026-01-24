@@ -47,7 +47,7 @@ export class UserController {
     @Query('search') search?: string,
   ) {
     return this.userService.getAllStudents({
-      page: Number(page) || 1,
+      page: page === 'all' ? 'all' : Number(page ?? 1),
       search: search || '',
     });
   }
