@@ -31,8 +31,14 @@ async function bootstrap() {
   );
   console.log('PIPES SET');
 
-  const port = process.env.PORT || 4000;
+  const port = Number(process.env.PORT);
+
+  if (!port) {
+    throw new Error('PORT is not defined');
+  }
+
   await app.listen(port, '0.0.0.0');
+  console.log('LISTENING ON', port);
   console.log('LISTENING ON', port);
 }
 void bootstrap();
