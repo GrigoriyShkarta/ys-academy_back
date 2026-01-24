@@ -31,14 +31,13 @@ async function bootstrap() {
   );
   console.log('PIPES SET');
 
-  const port = Number(process.env.PORT);
+  const port = Number(process.env.PORT ?? 8080);
 
   if (!port) {
     throw new Error('PORT is not defined');
   }
-
+  console.log('PORT FROM ENV:', process.env.PORT);
   await app.listen(port, '0.0.0.0');
-  console.log('LISTENING ON', port);
   console.log('LISTENING ON', port);
 }
 void bootstrap();
