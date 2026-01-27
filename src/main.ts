@@ -18,7 +18,7 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
-    transports: ['polling', 'websocket'],
+    transports: ['websocket'],
   });
 
   console.log('CORS ENABLED');
