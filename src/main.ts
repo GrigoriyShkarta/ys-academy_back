@@ -18,6 +18,7 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
+    transports: ['polling', 'websocket'],
   });
 
   console.log('CORS ENABLED');
@@ -31,12 +32,9 @@ async function bootstrap() {
   );
   console.log('PIPES SET');
 
-  const port = Number(process.env.PORT ?? 8080);
+  const port = Number(process.env.PORT);
+  if (!port) throw new Error('PORT is not defined');
 
-  if (!port) {
-    throw new Error('PORT is not defined');
-  }
-  console.log('PORT FROM ENV:', process.env.PORT);
   await app.listen(port, '0.0.0.0');
   console.log('LISTENING ON', port);
 }
