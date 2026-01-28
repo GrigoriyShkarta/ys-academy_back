@@ -10,7 +10,7 @@ import { Server, Socket } from 'socket.io';
 import { BoardService } from './modules/boards/board.service';
 
 @WebSocketGateway({
-  namespace: 'board-sync',
+  // namespace: 'board-sync',
   cors: {
     origin: true,
     credentials: true,
@@ -80,7 +80,9 @@ export class BoardSyncGateway
     try {
       const records = await this.boardService.getBoardRecords(roomId);
       client.emit('init', records);
-      console.log(`📤 Sent ${records.length} records to client for room ${roomId}`);
+      console.log(
+        `📤 Sent ${records.length} records to client for room ${roomId}`,
+      );
     } catch (error) {
       console.error(`❌ Error fetching board ${roomId}:`, error);
       client.emit('init', []);
@@ -117,7 +119,9 @@ export class BoardSyncGateway
       // Broadcast to all others in the room
       client.to(roomName).emit('update', records);
 
-      console.log(`💾 Saved & broadcast ${records.length} records in room ${roomId}`);
+      console.log(
+        `💾 Saved & broadcast ${records.length} records in room ${roomId}`,
+      );
     } catch (error) {
       console.error(`❌ Error updating board ${roomId}:`, error);
     }
@@ -153,7 +157,10 @@ export class BoardSyncGateway
 
   // === CURSOR MOVEMENT ===
   @SubscribeMessage('cursor')
-  handleCursor(client: Socket, payload: { x: number; y: number; userName?: string }) {
+  handleCursor(
+    client: Socket,
+    payload: { x: number; y: number; userName?: string },
+  ) {
     const { roomId, userId, userName } = client.data || {};
     if (!roomId || !userId) return;
 
