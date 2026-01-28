@@ -11,7 +11,30 @@ export class BoardService {
   ) {}
 
   /**
-   * Получить все записи доски для roomId
+   * Получить всю доску (Excalidraw)
+   */
+  async getBoard(id: string) {
+    let board = await this.prisma.board.findUnique({
+      where: { id },
+    });
+
+    if (!board) {
+      // Создаем новую доску, если ее нет
+      board = await this.prisma.board.create({
+        data: {
+          id,
+          elements: [],
+          appState: {},
+          files: {},
+        },
+      });
+    }
+
+    return board;
+  }
+
+  /**
+   * Получить все записи доски для roomId (tldraw - legacy)
    */
   async getBoardRecords(roomId: string) {
     const records = await this.prisma.boardRecord.findMany({
@@ -27,7 +50,33 @@ export class BoardService {
   }
 
   /**
-   * Обновить или создать записи (UPSERT) с обработкой файлов
+   * Обновить всю доску (Excalidraw)
+   */
+  async updateBoard(
+    id: string,
+    elements: any[],
+    appState: any,
+    files: any,
+  ) {
+    return this.prisma.board.upsert({
+      where: { id },
+      update: {
+        elements: elements as any,
+        appState: appState as any,
+        files: files as any,
+        updatedAt: new Date(),
+      },
+      create: {
+        id,
+        elements: elements as any,
+        appState: appState as any,
+        files: files as any,
+      },
+    });
+  }
+
+  /**
+   * Обновить или создать записи (UPSERT) с обработкой файлов (tldraw - legacy)
    */
   async updateBoardRecords(roomId: string, records: any[]) {
     const flatRecords = Array.isArray(records[0]) ? records.flat() : records;

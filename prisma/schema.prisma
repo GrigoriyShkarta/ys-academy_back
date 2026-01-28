@@ -349,3 +349,11 @@ model BoardRecord {
   @@index([roomId])
   @@map("board_records")
 }
+
+model Board {
+  id        String   @id @default(uuid())
+  elements  Json     // Store the elements array
+  appState  Json?    // Store the app state
+  files     Json?    // Store the files mapping
+  updatedAt DateTime @updatedAt
+}

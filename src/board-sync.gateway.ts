@@ -10,12 +10,18 @@ import {
 import { Server, Socket } from 'socket.io';
 import { BoardService } from './modules/boards/board.service';
 
-@WebSocketGateway()
+@WebSocketGateway({
+  cors: {
+    origin: '*',
+  },
+})
 export class BoardSyncGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
   server: Server;
+
+  private saveTimeouts = new Map<string, NodeJS.Timeout>();
 
   constructor(private readonly boardService: BoardService) {}
 
@@ -25,43 +31,15 @@ export class BoardSyncGateway
 
   // === CONNECTION ===
   async handleConnection(client: Socket) {
-    const { roomId, userId, userName } = client.handshake.query as {
-      roomId?: string;
+    const { userId, userName } = client.handshake.query as {
       userId?: string;
       userName?: string;
     };
 
-    console.log(
-      `🔌 Connection attempt from ${userId} (${userName}) to room ${roomId}`,
-    );
+    client.data = { userId, userName: userName || 'Anonymous' };
+    console.log(`🔌 Client connected: ${userId} (${userName})`);
 
-    if (!roomId || !userId) {
-      console.warn('⚠️ Connection rejected: missing roomId or userId');
-      client.disconnect();
-      return;
-    }
-
-    // Store user data in socket for later use
-    client.data = { roomId, userId, userName: userName || 'Anonymous' };
-
-    // Join the room
-    const roomName = `room-${roomId}`;
-    await client.join(roomName);
-
-    // Send current board state to the new client
-    try {
-      const records = await this.boardService.getBoardRecords(roomId);
-
-      console.log(`✅ User ${userId} (${userName}) joined room ${roomId}`);
-      console.log(`📤 Sending ${records.length} records to ${userId}`);
-
-      client.emit('init', records);
-    } catch (error) {
-      console.error(`❌ Error loading board for room ${roomId}:`, error);
-      client.emit('init', []);
-    }
-
-    // Heartbeat для Heroku
+    // Heartbeat for Heroku/Stability
     const heartbeat = setInterval(() => {
       if (client.connected) {
         client.emit('ping', { timestamp: Date.now() });
@@ -73,145 +51,110 @@ export class BoardSyncGateway
 
   // === DISCONNECTION ===
   handleDisconnect(client: Socket) {
-    const { roomId, userId, userName, heartbeat } = client.data || {};
+    const { userId, userName, heartbeat, currentBoardId } = client.data || {};
 
     if (heartbeat) {
       clearInterval(heartbeat);
     }
 
-    if (roomId && userId) {
-      const roomName = `room-${roomId}`;
-      // Notify other users that this user left
+    if (currentBoardId && userId) {
+      const roomName = `board:${currentBoardId}`;
       client.to(roomName).emit('user-left', userId);
-      console.log(`👋 User ${userId} (${userName}) left room ${roomId}`);
+      console.log(`👋 User ${userId} (${userName}) left board ${currentBoardId}`);
+    } else {
+      console.log(`🔌 Client disconnected: ${userId} (${userName})`);
     }
   }
 
   @SubscribeMessage('pong')
   handlePong(client: Socket) {
     client.data.lastPong = Date.now();
+    console.log(`🏓 Pong from ${client.data.userId}`);
   }
 
-  // === GET BOARD (explicit request) ===
-  @SubscribeMessage('get-board')
-  async handleGetBoard(client: Socket, payload: { roomId: string }) {
-    const roomId = payload?.roomId || client.data?.roomId;
-    if (!roomId) {
-      console.warn('⚠️ get-board: no roomId');
-      return;
-    }
+  // === JOIN BOARD ===
+  @SubscribeMessage('join-board')
+  async handleJoinBoard(client: Socket, boardId: string) {
+    if (!boardId) return;
+
+    const roomName = `board:${boardId}`;
+    await client.join(roomName);
+    client.data.currentBoardId = boardId;
+
+    console.log(`👤 User ${client.data.userId} joined board: ${boardId}`);
 
     try {
-      const records = await this.boardService.getBoardRecords(roomId);
-      client.emit('init', records);
-      console.log(
-        `📤 get-board: Sent ${records.length} records to ${client.data.userId}`,
-      );
-    } catch (error) {
-      console.error(`❌ Error fetching board ${roomId}:`, error);
-      client.emit('init', []);
-    }
-  }
-
-  // === UPDATE RECORDS ===
-  @SubscribeMessage('update')
-  async handleUpdate(client: Socket, payload: any) {
-    const { roomId, userId } = client.data || {};
-    if (!roomId) {
-      console.warn('⚠️ update: no roomId in client.data');
-      return;
-    }
-
-    const roomName = `room-${roomId}`;
-
-    try {
-      // Normalize payload to flat array
-      let records = Array.isArray(payload) ? payload : [payload];
-
-      // Flatten nested arrays if needed
-      if (records.length > 0 && Array.isArray(records[0])) {
-        records = records.flat();
-      }
-
-      // Filter out invalid records
-      records = records.filter((r: any) => r && r.id && r.typeName);
-
-      if (records.length === 0) {
-        console.warn('⚠️ update: no valid records');
-        return;
-      }
-
-      console.log(`📥 Update from ${userId}: ${records.length} records`);
-
-      // Save to database (async, don't block)
-      this.boardService.updateBoardRecords(roomId, records).catch((err) => {
-        console.error('❌ DB Save Error:', err);
+      const board = await this.boardService.getBoard(boardId);
+      client.emit('init-board', {
+        elements: board.elements,
+        appState: board.appState,
+        files: board.files,
       });
-
-      // Broadcast to all others in the room IMMEDIATELY
-      client.to(roomName).emit('update', records);
-
-      console.log(`✅ Broadcast ${records.length} records to room ${roomName}`);
     } catch (error) {
-      console.error(`❌ Error updating board ${roomId}:`, error);
+      console.error(`❌ Error initializing board ${boardId}:`, error);
+      client.emit('init-board', { elements: [], appState: {}, files: {} });
     }
   }
 
-  // === DELETE RECORDS ===
-  @SubscribeMessage('delete')
-  async handleDelete(client: Socket, payload: any) {
-    const { roomId, userId } = client.data || {};
-    if (!roomId) {
-      console.warn('⚠️ delete: no roomId');
-      return;
-    }
-
-    const roomName = `room-${roomId}`;
-
-    try {
-      // Normalize payload to array of IDs
-      const recordIds: string[] = Array.isArray(payload) ? payload : [payload];
-
-      if (recordIds.length === 0) {
-        console.warn('⚠️ delete: no recordIds');
-        return;
-      }
-
-      console.log(`🗑️ Delete from ${userId}: ${recordIds.length} records`);
-
-      // Delete from database (async)
-      this.boardService.deleteBoardRecords(roomId, recordIds).catch((err) => {
-        console.error('❌ DB Delete Error:', err);
-      });
-
-      // Broadcast to all others in the room
-      client.to(roomName).emit('delete', recordIds);
-
-      console.log(
-        `✅ Broadcast delete of ${recordIds.length} records to room ${roomName}`,
-      );
-    } catch (error) {
-      console.error(`❌ Error deleting from board ${roomId}:`, error);
-    }
-  }
-
-  // === CURSOR MOVEMENT ===
-  @SubscribeMessage('cursor')
-  handleCursor(
+  // === UPDATE BOARD ===
+  @SubscribeMessage('update-board')
+  async handleUpdateBoard(
     client: Socket,
-    payload: { x: number; y: number; userName?: string },
+    data: { boardId: string; elements: any[]; appState: any; files: any },
   ) {
-    const { roomId, userId, userName } = client.data || {};
-    if (!roomId || !userId) return;
+    const { boardId, elements, appState, files } = data;
+    if (!boardId) return;
 
-    const roomName = `room-${roomId}`;
+    const roomName = `board:${boardId}`;
 
-    // Broadcast cursor position to all others in the room (volatile = can be dropped)
-    client.to(roomName).volatile.emit('cursor', {
+    console.log(`📥 Update board ${boardId} from ${client.data.userId} (${elements.length} elements)`);
+
+    // Broadcast to others immediately for smooth interaction
+    client.to(roomName).emit('board-update', { elements, files });
+
+    // Clear existing timeout for this board
+    if (this.saveTimeouts.has(boardId)) {
+      clearTimeout(this.saveTimeouts.get(boardId));
+    }
+
+    // Set new timeout for debounced saving
+    const timeout = setTimeout(async () => {
+      try {
+        console.log(`💾 Saving board ${boardId} to database...`);
+        await this.boardService.updateBoard(boardId, elements, appState, files);
+        console.log(`✅ Board ${boardId} saved successfully`);
+        this.saveTimeouts.delete(boardId);
+      } catch (error) {
+        console.error(`❌ Error saving board ${boardId}:`, error);
+      }
+    }, 2000); // 2 seconds debounce
+
+    this.saveTimeouts.set(boardId, timeout);
+  }
+
+  // === POINTER MOVE ===
+  @SubscribeMessage('pointer-move')
+  handlePointerMove(
+    client: Socket,
+    data: {
+      boardId: string;
+      userId: number;
+      userName: string;
+      pointer: { x: number; y: number };
+    },
+  ) {
+    const { boardId, userId, userName, pointer } = data;
+    if (!boardId) return;
+
+    const roomName = `board:${boardId}`;
+
+    console.log(`🖱️ Pointer move: ${userName} (${userId}) at ${pointer.x}, ${pointer.y}`);
+
+    // Broadcast cursor position (volatile for performance)
+    client.to(roomName).volatile.emit('pointer-move', {
       userId,
-      userName: payload.userName || userName || 'Anonymous',
-      x: payload.x,
-      y: payload.y,
+      userName,
+      pointer,
     });
   }
 }
