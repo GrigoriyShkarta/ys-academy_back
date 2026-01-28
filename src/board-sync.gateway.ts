@@ -2,6 +2,7 @@
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -9,21 +10,18 @@ import {
 import { Server, Socket } from 'socket.io';
 import { BoardService } from './modules/boards/board.service';
 
-@WebSocketGateway({
-  // namespace: 'board-sync',
-  cors: {
-    origin: true,
-    credentials: true,
-  },
-  transports: ['websocket', 'polling'],
-})
+@WebSocketGateway()
 export class BoardSyncGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
   server: Server;
 
   constructor(private readonly boardService: BoardService) {}
+
+  afterInit() {
+    console.log('🚀 BoardSync Gateway initialized');
+  }
 
   // === CONNECTION ===
   async handleConnection(client: Socket) {
@@ -32,6 +30,10 @@ export class BoardSyncGateway
       userId?: string;
       userName?: string;
     };
+
+    console.log(
+      `🔌 Connection attempt from ${userId} (${userName}) to room ${roomId}`,
+    );
 
     if (!roomId || !userId) {
       console.warn('⚠️ Connection rejected: missing roomId or userId');
@@ -49,39 +51,61 @@ export class BoardSyncGateway
     // Send current board state to the new client
     try {
       const records = await this.boardService.getBoardRecords(roomId);
+
+      console.log(`✅ User ${userId} (${userName}) joined room ${roomId}`);
+      console.log(`📤 Sending ${records.length} records to ${userId}`);
+
       client.emit('init', records);
-      console.log(
-        `✅ User ${userId} (${userName}) joined room ${roomId}, sent ${records.length} records`,
-      );
     } catch (error) {
       console.error(`❌ Error loading board for room ${roomId}:`, error);
       client.emit('init', []);
     }
+
+    // Heartbeat для Heroku
+    const heartbeat = setInterval(() => {
+      if (client.connected) {
+        client.emit('ping', { timestamp: Date.now() });
+      }
+    }, 25000);
+
+    client.data.heartbeat = heartbeat;
   }
 
   // === DISCONNECTION ===
   handleDisconnect(client: Socket) {
-    const { roomId, userId } = client.data || {};
+    const { roomId, userId, userName, heartbeat } = client.data || {};
+
+    if (heartbeat) {
+      clearInterval(heartbeat);
+    }
 
     if (roomId && userId) {
       const roomName = `room-${roomId}`;
       // Notify other users that this user left
       client.to(roomName).emit('user-left', userId);
-      console.log(`👋 User ${userId} left room ${roomId}`);
+      console.log(`👋 User ${userId} (${userName}) left room ${roomId}`);
     }
+  }
+
+  @SubscribeMessage('pong')
+  handlePong(client: Socket) {
+    client.data.lastPong = Date.now();
   }
 
   // === GET BOARD (explicit request) ===
   @SubscribeMessage('get-board')
   async handleGetBoard(client: Socket, payload: { roomId: string }) {
     const roomId = payload?.roomId || client.data?.roomId;
-    if (!roomId) return;
+    if (!roomId) {
+      console.warn('⚠️ get-board: no roomId');
+      return;
+    }
 
     try {
       const records = await this.boardService.getBoardRecords(roomId);
       client.emit('init', records);
       console.log(
-        `📤 Sent ${records.length} records to client for room ${roomId}`,
+        `📤 get-board: Sent ${records.length} records to ${client.data.userId}`,
       );
     } catch (error) {
       console.error(`❌ Error fetching board ${roomId}:`, error);
@@ -93,7 +117,10 @@ export class BoardSyncGateway
   @SubscribeMessage('update')
   async handleUpdate(client: Socket, payload: any) {
     const { roomId, userId } = client.data || {};
-    if (!roomId) return;
+    if (!roomId) {
+      console.warn('⚠️ update: no roomId in client.data');
+      return;
+    }
 
     const roomName = `room-${roomId}`;
 
@@ -109,19 +136,22 @@ export class BoardSyncGateway
       // Filter out invalid records
       records = records.filter((r: any) => r && r.id && r.typeName);
 
-      if (records.length === 0) return;
+      if (records.length === 0) {
+        console.warn('⚠️ update: no valid records');
+        return;
+      }
 
       console.log(`📥 Update from ${userId}: ${records.length} records`);
 
-      // Save to database
-      await this.boardService.updateBoardRecords(roomId, records);
+      // Save to database (async, don't block)
+      this.boardService.updateBoardRecords(roomId, records).catch((err) => {
+        console.error('❌ DB Save Error:', err);
+      });
 
-      // Broadcast to all others in the room
+      // Broadcast to all others in the room IMMEDIATELY
       client.to(roomName).emit('update', records);
 
-      console.log(
-        `💾 Saved & broadcast ${records.length} records in room ${roomId}`,
-      );
+      console.log(`✅ Broadcast ${records.length} records to room ${roomName}`);
     } catch (error) {
       console.error(`❌ Error updating board ${roomId}:`, error);
     }
@@ -131,7 +161,10 @@ export class BoardSyncGateway
   @SubscribeMessage('delete')
   async handleDelete(client: Socket, payload: any) {
     const { roomId, userId } = client.data || {};
-    if (!roomId) return;
+    if (!roomId) {
+      console.warn('⚠️ delete: no roomId');
+      return;
+    }
 
     const roomName = `room-${roomId}`;
 
@@ -139,17 +172,24 @@ export class BoardSyncGateway
       // Normalize payload to array of IDs
       const recordIds: string[] = Array.isArray(payload) ? payload : [payload];
 
-      if (recordIds.length === 0) return;
+      if (recordIds.length === 0) {
+        console.warn('⚠️ delete: no recordIds');
+        return;
+      }
 
       console.log(`🗑️ Delete from ${userId}: ${recordIds.length} records`);
 
-      // Delete from database
-      await this.boardService.deleteBoardRecords(roomId, recordIds);
+      // Delete from database (async)
+      this.boardService.deleteBoardRecords(roomId, recordIds).catch((err) => {
+        console.error('❌ DB Delete Error:', err);
+      });
 
       // Broadcast to all others in the room
       client.to(roomName).emit('delete', recordIds);
 
-      console.log(`🗑️ Deleted ${recordIds.length} records from room ${roomId}`);
+      console.log(
+        `✅ Broadcast delete of ${recordIds.length} records to room ${roomName}`,
+      );
     } catch (error) {
       console.error(`❌ Error deleting from board ${roomId}:`, error);
     }
@@ -166,9 +206,8 @@ export class BoardSyncGateway
 
     const roomName = `room-${roomId}`;
 
-    // Broadcast cursor position to all others in the room
-    // Include userId so frontend knows whose cursor it is
-    client.to(roomName).emit('cursor', {
+    // Broadcast cursor position to all others in the room (volatile = can be dropped)
+    client.to(roomName).volatile.emit('cursor', {
       userId,
       userName: payload.userName || userName || 'Anonymous',
       x: payload.x,
