@@ -27,32 +27,6 @@ export class BoardService {
   }
 
   /**
-   * Обновить всю доску (Excalidraw)
-   */
-  async updateBoard(
-    id: string,
-    elements: any[],
-    appState: any,
-    files: any,
-  ) {
-    return this.prisma.board.upsert({
-      where: { id },
-      update: {
-        elements: elements as any,
-        appState: appState as any,
-        files: files as any,
-        updatedAt: new Date(),
-      },
-      create: {
-        id,
-        elements: elements as any,
-        appState: appState as any,
-        files: files as any,
-      },
-    });
-  }
-
-  /**
    * Обновить или создать записи (UPSERT) с обработкой файлов (tldraw - legacy)
    */
   async updateBoardRecords(roomId: string, records: any[]) {
