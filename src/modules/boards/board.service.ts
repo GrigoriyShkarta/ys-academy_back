@@ -11,22 +11,6 @@ export class BoardService {
   ) {}
 
   /**
-   * Получить всю доску (Excalidraw)
-   */
-  async getBoard(id: string) {
-    return this.prisma.board.upsert({
-      where: { id },
-      update: {},
-      create: {
-        id,
-        elements: [],
-        appState: {},
-        files: {},
-      },
-    });
-  }
-
-  /**
    * Получить все записи доски для roomId (tldraw - legacy)
    */
   async getBoardRecords(roomId: string) {
