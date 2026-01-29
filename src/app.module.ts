@@ -35,6 +35,6 @@ import { BoardModule } from './modules/boards/board.module';
     BoardModule,
   ],
   controllers: [AppController],
-  providers: [AppService, BoardSyncGateway],
+  providers: [AppService],
 })
 export class AppModule {}

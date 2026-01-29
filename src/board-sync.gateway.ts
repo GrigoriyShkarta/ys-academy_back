@@ -1,8 +1,7 @@
-// src/board-sync.gateway.ts
+// src/modules/board/board-sync.gateway.ts
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
-  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -11,150 +10,148 @@ import { Server, Socket } from 'socket.io';
 import { BoardService } from './modules/boards/board.service';
 
 @WebSocketGateway({
+  namespace: 'board-sync',
   cors: {
-    origin: '*',
+    origin: [
+      'http://localhost:3000',
+      'https://ys-academy.vercel.app',
+      'https://ys-academy-dev.vercel.app',
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true,
   },
 })
 export class BoardSyncGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
   server: Server;
 
-  private saveTimeouts = new Map<string, NodeJS.Timeout>();
-
   constructor(private readonly boardService: BoardService) {}
 
-  afterInit() {
-    console.log('🚀 BoardSync Gateway initialized');
-  }
-
-  // === CONNECTION ===
   async handleConnection(client: Socket) {
-    const { userId, userName } = client.handshake.query as {
+    const { roomId, userId } = client.handshake.query as {
+      roomId?: string;
       userId?: string;
-      userName?: string;
     };
 
-    client.data = { userId, userName: userName || 'Anonymous' };
-    console.log(`🔌 Client connected: ${userId} (${userName})`);
-
-    // Heartbeat for Heroku/Stability
-    const heartbeat = setInterval(() => {
-      if (client.connected) {
-        client.emit('ping', { timestamp: Date.now() });
-      }
-    }, 25000);
-
-    client.data.heartbeat = heartbeat;
-  }
-
-  // === DISCONNECTION ===
-  handleDisconnect(client: Socket) {
-    const { userId, userName, heartbeat, currentBoardId } = client.data || {};
-
-    if (heartbeat) {
-      clearInterval(heartbeat);
+    if (!roomId) {
+      client.disconnect();
+      return;
     }
 
-    if (currentBoardId && userId) {
-      const roomName = `board:${currentBoardId}`;
-      client.to(roomName).emit('user-left', userId);
-      console.log(`👋 User ${userId} (${userName}) left board ${currentBoardId}`);
-    } else {
-      console.log(`🔌 Client disconnected: ${userId} (${userName})`);
-    }
-  }
-
-  @SubscribeMessage('pong')
-  handlePong(client: Socket) {
-    client.data.lastPong = Date.now();
-    console.log(`🏓 Pong from ${client.data.userId}`);
-  }
-
-  // === JOIN BOARD ===
-  @SubscribeMessage('join-board')
-  async handleJoinBoard(client: Socket, boardId: string) {
-    if (!boardId) return;
-
-    const roomName = `board:${boardId}`;
+    const roomName = `room-${roomId}`;
     await client.join(roomName);
-    client.data.currentBoardId = boardId;
 
-    console.log(`👤 User ${client.data.userId} joined board: ${boardId}`);
+    // Отправляем текущее состояние доски клиенту
+    try {
+      const records = await this.boardService.getBoardRecords(roomId);
+      client.emit('init', records);
+      console.log(
+        `✅ User ${userId} joined room ${roomId}, sent ${records.length} records`,
+      );
+    } catch (error) {
+      console.error(`❌ Error loading board for room ${roomId}:`, error);
+      client.emit('init', []); // Отправляем пустую доску в случае ошибки
+    }
+  }
+
+  handleDisconnect(client: Socket) {
+    const { roomId, userId } = client.handshake.query as {
+      roomId?: string;
+      userId?: string;
+    };
+    console.log(`👋 User ${userId} left room ${roomId}`);
+  }
+
+  // Получаем изменения и сохраняем в БД + рассылаем всем
+  @SubscribeMessage('update')
+  async handleUpdate(client: Socket, payload: any) {
+    const { roomId, userId } = client.handshake.query as {
+      roomId?: string;
+      userId?: string;
+    };
+    if (!roomId) return;
+
+    const roomName = `room-${roomId}`;
 
     try {
-      const board = await this.boardService.getBoard(boardId);
-      client.emit('init-board', {
-        elements: board.elements,
-        appState: board.appState,
-        files: board.files,
-      });
-    } catch (error) {
-      console.error(`❌ Error initializing board ${boardId}:`, error);
-      client.emit('init-board', { elements: [], appState: {}, files: {} });
-    }
-  }
+      // ⬇️ ИСПРАВЛЕНИЕ: Flatten если payload это вложенный массив
+      let records = Array.isArray(payload) ? payload : [payload];
 
-  // === UPDATE BOARD ===
-  @SubscribeMessage('update-board')
-  async handleUpdateBoard(
-    client: Socket,
-    data: { boardId: string; elements: any[]; appState: any; files: any },
-  ) {
-    const { boardId, elements, appState, files } = data;
-    if (!boardId) return;
-
-    const roomName = `board:${boardId}`;
-
-    console.log(`📥 Update board ${boardId} from ${client.data.userId} (${elements.length} elements)`);
-
-    // Broadcast to others immediately for smooth interaction
-    client.to(roomName).emit('board-update', { elements, files });
-
-    // Clear existing timeout for this board
-    if (this.saveTimeouts.has(boardId)) {
-      clearTimeout(this.saveTimeouts.get(boardId));
-    }
-
-    // Set new timeout for debounced saving
-    const timeout = setTimeout(async () => {
-      try {
-        console.log(`💾 Saving board ${boardId} to database...`);
-        await this.boardService.updateBoard(boardId, elements, appState, files);
-        console.log(`✅ Board ${boardId} saved successfully`);
-        this.saveTimeouts.delete(boardId);
-      } catch (error) {
-        console.error(`❌ Error saving board ${boardId}:`, error);
+      // Если первый элемент тоже массив - flatten
+      if (records.length > 0 && Array.isArray(records[0])) {
+        records = records.flat();
       }
-    }, 2000); // 2 seconds debounce
 
-    this.saveTimeouts.set(boardId, timeout);
+      console.log('📥 Received update:', records.length, 'records');
+
+      // Сохраняем в БД
+      await this.boardService.updateBoardRecords(roomId, records);
+
+      // Рассылаем всем, кроме отправителя
+      client.to(roomName).emit('update', records);
+
+      console.log(`💾 Updated ${records.length} records in room ${roomId}`);
+    } catch (error) {
+      console.error(`❌ Error updating board ${roomId}:`, error);
+    }
   }
 
-  // === POINTER MOVE ===
-  @SubscribeMessage('pointer-move')
-  handlePointerMove(
-    client: Socket,
-    data: {
-      boardId: string;
-      userId: number;
-      userName: string;
-      pointer: { x: number; y: number };
-    },
-  ) {
-    const { boardId, userId, userName, pointer } = data;
-    if (!boardId) return;
+  // Удаление элементов доски
+  @SubscribeMessage('delete')
+  async handleDelete(client: Socket, payload: any) {
+    const { roomId, userId } = client.handshake.query as {
+      roomId?: string;
+      userId?: string;
+    };
+    if (!roomId) return;
 
-    const roomName = `board:${boardId}`;
+    const roomName = `room-${roomId}`;
 
-    console.log(`🖱️ Pointer move: ${userName} (${userId}) at ${pointer.x}, ${pointer.y}`);
+    try {
+      // Payload должен быть массивом ID: string[]
+      const recordIds = Array.isArray(payload) ? payload : [payload];
 
-    // Broadcast cursor position (volatile for performance)
-    client.to(roomName).volatile.emit('pointer-move', {
-      userId,
-      userName,
-      pointer,
-    });
+      // Удаляем из БД
+      await this.boardService.deleteBoardRecords(roomId, recordIds);
+
+      // Рассылаем всем, кроме отправителя
+      client.to(roomName).emit('delete', recordIds);
+
+      console.log(`🗑️ Deleted ${recordIds.length} records from room ${roomId}`);
+    } catch (error) {
+      console.error(`❌ Error deleting from board ${roomId}:`, error);
+    }
+  }
+
+  // Клиент запрашивает текущее состояние доски
+  @SubscribeMessage('get-board')
+  async handleGetBoard(client: Socket, payload: { roomId: string }) {
+    try {
+      const records = await this.boardService.getBoardRecords(payload.roomId);
+      client.emit('init', records);
+      console.log(
+        `📤 Sent ${records.length} records to client for room ${payload.roomId}`,
+      );
+    } catch (error) {
+      console.error(`❌ Error fetching board ${payload.roomId}:`, error);
+      client.emit('init', []);
+    }
+  }
+
+  // Обработка движения курсора (без сохранения в БД)
+  @SubscribeMessage('cursor')
+  handleCursor(client: Socket, payload: any) {
+    const { roomId } = client.handshake.query as {
+      roomId?: string;
+      userId?: string;
+    };
+    if (!roomId) return;
+
+    const roomName = `room-${roomId}`;
+
+    // Рассылаем всем, кроме отправителя
+    client.to(roomName).emit('cursor', payload);
   }
 }

@@ -14,23 +14,16 @@ export class BoardService {
    * Получить всю доску (Excalidraw)
    */
   async getBoard(id: string) {
-    let board = await this.prisma.board.findUnique({
+    return this.prisma.board.upsert({
       where: { id },
+      update: {},
+      create: {
+        id,
+        elements: [],
+        appState: {},
+        files: {},
+      },
     });
-
-    if (!board) {
-      // Создаем новую доску, если ее нет
-      board = await this.prisma.board.create({
-        data: {
-          id,
-          elements: [],
-          appState: {},
-          files: {},
-        },
-      });
-    }
-
-    return board;
   }
 
   /**
