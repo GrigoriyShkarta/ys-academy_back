@@ -108,4 +108,24 @@ export class SubscriptionsController {
       dto.userId,
     );
   }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'super_admin')
+  @Patch('lessons/:lessonId/update-recording')
+  updateRecording(
+    @Param('lessonId') lessonId: number,
+    @Body() dto: { recordingUrl: string },
+  ) {
+    return this.subscriptionsService.updateRecordingToLesson(
+      +lessonId,
+      dto.recordingUrl,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'super_admin')
+  @Delete('lessons/:lessonId/delete-recording')
+  deleteRecording(@Param('lessonId') lessonId: number) {
+    return this.subscriptionsService.deleteRecordingFromLesson(+lessonId);
+  }
 }

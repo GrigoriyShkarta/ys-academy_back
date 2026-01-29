@@ -36,6 +36,14 @@ export class CourseService {
               connect: data.modules.map((m) => ({ id: m.id })),
             }
           : undefined,
+        courseModules: data.modules?.length
+          ? {
+              create: data.modules.map((m, idx) => ({
+                module: { connect: { id: m.id } },
+                order: m.index ?? idx,
+              })),
+            }
+          : undefined,
         courseLessons: sortedLessons.length
           ? {
               create: sortedLessons.map((lesson, idx) => ({
@@ -91,17 +99,31 @@ export class CourseService {
           },
         },
         categories: { select: { id: true, title: true, color: true } },
+        courseModules: {
+          select: { moduleId: true, order: true },
+        },
       },
     } as any)) as any[];
 
-    // Возвращаем lessons, отсортированные по order
-    return courses.map((course) => ({
-      ...course,
-      lessons: course.courseLessons.map((cl) => ({
-        ...cl.lesson,
-        order: cl.order,
-      })),
-    }));
+    // Возвращаем данные, сортируя модули и уроки
+    return courses.map((course) => {
+      const orderMap = new Map<number, number>(
+        course.courseModules.map((cm: any) => [cm.moduleId, cm.order]),
+      );
+
+      return {
+        ...course,
+        modules: [...course.modules].sort(
+          (a: any, b: any) =>
+            ((orderMap.get(a.id) as number) ?? 0) -
+            ((orderMap.get(b.id) as number) ?? 0),
+        ),
+        lessons: course.courseLessons.map((cl) => ({
+          ...cl.lesson,
+          order: cl.order,
+        })),
+      };
+    });
   }
 
   async updateCourse(id: number, data: CourseDto) {
@@ -154,6 +176,20 @@ export class CourseService {
           },
         },
       }) as any,
+
+      // Полностью пересобираем courseModules по order
+      this.prisma.courseModule.deleteMany({ where: { courseId: id } }) as any,
+      ...(data.modules?.length
+        ? [
+            this.prisma.courseModule.createMany({
+              data: data.modules.map((m, idx) => ({
+                courseId: id,
+                moduleId: m.id,
+                order: m.index ?? idx,
+              })),
+            }) as any,
+          ]
+        : []),
 
       // Полностью пересобираем courseLessons по order
       this.prisma.courseLesson.deleteMany({ where: { courseId: id } }) as any,
@@ -216,6 +252,9 @@ export class CourseService {
               },
             },
           },
+        },
+        courseModules: {
+          select: { moduleId: true, order: true },
         },
       },
     } as any)) as any;
@@ -342,11 +381,19 @@ export class CourseService {
       };
     });
 
-    // ⬇️ СОРТИРОВКА: Модули с доступом (access: true) вначале
+    // СОРТИРОВКА: Сначала по порядку из courseModules, затем Модули с доступом (access: true) вначале (по желанию)
+    const orderMap = new Map(
+      course.courseModules.map((cm: any) => [cm.moduleId, cm.order]),
+    );
+
     const sortedModules = modulesWithLessonsAccess.sort((a, b) => {
-      // Если оба имеют доступ или оба не имеют - сохраняем исходный порядок
+      // 1. Порядок из courseModules
+      const orderA = (orderMap.get(a.id) as number) ?? 0;
+      const orderB = (orderMap.get(b.id) as number) ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+
+      // 2. Доступ (если порядок одинаковый)
       if (a.access === b.access) return 0;
-      // Модули с доступом (true) идут раньше
       return a.access ? -1 : 1;
     });
 

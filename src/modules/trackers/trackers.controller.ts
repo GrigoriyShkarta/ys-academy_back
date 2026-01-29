@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 
@@ -18,9 +19,8 @@ import {
   UpdateTrackerTaskDto,
 } from './dto/tracker.dto';
 import { TrackersService } from './trackers.service';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { ToggleSubtaskDto } from './dto/subtask.dto';
+import { RequestWithUser } from '../../common/types/request-with-user.interface';
 
 @Controller('trackers')
 @UseGuards(AuthGuard('jwt'))
@@ -33,14 +33,12 @@ export class TrackersController {
 
   // Toggle подзадачи
   @Patch('toggle')
-  toggleSubtask(@Body() dto: ToggleSubtaskDto) {
-    return this.trackerService.toggleSubtask(dto);
+  toggleSubtask(@Body() dto: ToggleSubtaskDto, @Req() req: RequestWithUser) {
+    return this.trackerService.toggleSubtask(dto, req.user.role);
   }
 
   // Создать задачу
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'super_admin')
   createTask(@Body() dto: CreateTrackerTaskDto) {
     return this.trackerService.createTask(dto);
   }
@@ -60,14 +58,13 @@ export class TrackersController {
   moveTask(
     @Param('taskId', ParseIntPipe) taskId: number,
     @Body() dto: MoveTrackerTaskDto,
+    @Req() req: RequestWithUser,
   ) {
-    return this.trackerService.moveTask(taskId, dto);
+    return this.trackerService.moveTask(taskId, dto, req.user.role);
   }
 
   // Обновить задачу
   @Patch(':taskId')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'super_admin')
   updateTask(
     @Param('taskId', ParseIntPipe) taskId: number,
     @Body() dto: UpdateTrackerTaskDto,
@@ -77,8 +74,6 @@ export class TrackersController {
 
   // Удалить задачу
   @Delete(':taskId')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'super_admin')
   deleteTask(@Param('taskId', ParseIntPipe) taskId: number) {
     return this.trackerService.deleteTask(taskId);
   }

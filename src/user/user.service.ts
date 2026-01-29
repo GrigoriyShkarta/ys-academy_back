@@ -114,18 +114,24 @@ export class UserService {
     });
 
     // Загружаем курсы со всеми модулями и уроками
-    const courses = await this.prisma.course.findMany({
+    const courses = (await this.prisma.course.findMany({
       include: {
-        modules: {
+        courseModules: {
+          orderBy: { order: 'asc' },
           include: {
-            moduleLessons: {
-              orderBy: { order: 'asc' },
+            module: {
               include: {
-                lesson: {
-                  select: {
-                    id: true,
-                    title: true,
-                    content: true, // ⬅️ Важно! Загружаем content для подсчета блоков
+                categories: { select: { id: true, title: true, color: true } },
+                moduleLessons: {
+                  orderBy: { order: 'asc' },
+                  include: {
+                    lesson: {
+                      select: {
+                        id: true,
+                        title: true,
+                        content: true,
+                      },
+                    },
                   },
                 },
               },
@@ -139,13 +145,13 @@ export class UserService {
               select: {
                 id: true,
                 title: true,
-                content: true, // ⬅️ Важно! Загружаем content для подсчета блоков
+                content: true,
               },
             },
           },
         },
       },
-    });
+    } as any)) as any[];
 
     // Функция для извлечения blockId из content
     const normalizeBlocks = (content: any): number[] => {
@@ -168,9 +174,10 @@ export class UserService {
       let totalLessons = 0;
       let lessonsWithAccess = 0;
 
-      // Обрабатываем модули
-      const modules = course.modules.map((module) => {
-        const lessons = module.moduleLessons.map((ml) => {
+      // Обрабатываем модули из courseModules (уже отсортированы по order)
+      const modules = course.courseModules.map((cm: any) => {
+        const module = cm.module;
+        const lessons = module.moduleLessons.map((ml: any) => {
           const lesson = ml.lesson;
           totalLessons++;
 
@@ -190,7 +197,7 @@ export class UserService {
             lessonsWithAccess++;
           }
 
-          // Формат: "доступных блоков / всего блоков"
+          // Формат: \"доступных блоков / всего блоков\"
           const accessString = `${availableBlocks.length}/${totalBlocks.length}`;
 
           return {
@@ -198,13 +205,14 @@ export class UserService {
             title: lesson.title,
             access: hasAccess,
             accessBlocks: availableBlocks,
-            accessString: accessString, // ⬅️ "1/3", "2/5" и т.д.
+            accessString: accessString,
           };
         });
 
         return {
           id: module.id,
           title: module.title,
+          categories: module.categories,
           lessons,
         };
       });
@@ -230,7 +238,7 @@ export class UserService {
           lessonsWithAccess++;
         }
 
-        // Формат: "доступных блоков / всего блоков"
+        // Формат: \"доступных блоков / всего блоков\"
         const accessString = `${availableBlocks.length}/${totalBlocks.length}`;
 
         return {
@@ -238,7 +246,7 @@ export class UserService {
           title: lesson.title,
           access: hasAccess,
           accessBlocks: availableBlocks,
-          accessString: accessString, // ⬅️ "1/3", "2/5" и т.д.
+          accessString: accessString,
           order: cl.order,
         };
       });
@@ -255,8 +263,8 @@ export class UserService {
         url: course.url,
         access: hasCourseAccess,
         progress,
-        modules,
-        lessons: courseLessons, // ⬅️ Добавляем уроки курса
+        modules: modules,
+        lessons: courseLessons,
       };
     });
 

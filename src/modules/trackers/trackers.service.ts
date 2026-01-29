@@ -169,7 +169,7 @@ export class TrackersService {
   }
 
   // Переместить задачу
-  async moveTask(taskId: number, dto: MoveTrackerTaskDto) {
+  async moveTask(taskId: number, dto: MoveTrackerTaskDto, role: string) {
     const task = await this.prisma.trackerTask.findFirst({
       where: { id: taskId, userId: dto.userId },
     });
@@ -208,12 +208,14 @@ export class TrackersService {
       });
 
       // Уведомления для супер админа
-      await this.prisma.notification.create({
-        data: {
-          userId: 1,
-          title: `student_updated_task_column ${user?.name}`,
-        },
-      });
+      if (role === 'student') {
+        await this.prisma.notification.create({
+          data: {
+            userId: 1,
+            title: `student_updated_task_column ${JSON.stringify({ name: user?.name, id: user?.id, task: task.title })}`,
+          },
+        });
+      }
 
       // Пересчитываем order в старой колонке
       await this.reorderTasks(dto.userId, oldColumnId);
@@ -238,7 +240,7 @@ export class TrackersService {
     });
   }
 
-  async toggleSubtask(dto: ToggleSubtaskDto) {
+  async toggleSubtask(dto: ToggleSubtaskDto, role: string) {
     // Проверяем что задача принадлежит пользователю
     const task = await this.prisma.trackerTask.findFirst({
       where: { id: dto.taskId, userId: dto.userId },
@@ -368,12 +370,14 @@ export class TrackersService {
         });
 
         // Уведомления для супер админа
-        await this.prisma.notification.create({
-          data: {
-            userId: 1,
-            title: `student_updated_task_column ${user?.name}`,
-          },
-        });
+        if (role === 'student') {
+          await this.prisma.notification.create({
+            data: {
+              userId: 1,
+              title: `student_updated_task_column ${JSON.stringify({ name: user?.name, id: user?.id, task: task.title })}`,
+            },
+          });
+        }
       }
 
       return { success: true };

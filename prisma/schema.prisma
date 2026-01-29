@@ -104,6 +104,7 @@ model Module {
   categories    Category[]     @relation("ModuleCategories")
   courses       Course[]       @relation("CourseModules")
   moduleLessons ModuleLesson[]
+  courseModules CourseModule[]
 }
 
 model Course {
@@ -116,6 +117,7 @@ model Course {
   modules       Module[]       @relation("CourseModules")
   lessons       Lesson[]       @relation("CourseLessons")
   courseLessons CourseLesson[]
+  courseModules CourseModule[]
   createdAt     DateTime?      @default(now())
   updatedAt     DateTime?      @updatedAt
 }
@@ -168,6 +170,19 @@ model ModuleLesson {
 
   @@unique([moduleId, lessonId])
   @@index([moduleId, order])
+}
+
+model CourseModule {
+  id       Int @id @default(autoincrement())
+  courseId Int
+  moduleId Int
+  order    Int
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, moduleId])
+  @@index([courseId, order])
 }
 
 enum LessonItemType {

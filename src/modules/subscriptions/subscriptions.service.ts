@@ -347,4 +347,40 @@ export class SubscriptionsService {
       },
     });
   }
+
+  async updateRecordingToLesson(lessonId: number, recordingUrl: string) {
+    const lesson = await this.prisma.userLesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new BadRequestException('Lesson not found');
+    }
+
+    await this.prisma.userLesson.update({
+      where: { id: lessonId },
+      data: {
+        recordingUrl,
+      },
+    });
+
+    return true;
+  }
+
+  async deleteRecordingFromLesson(lessonId: number) {
+    const lesson = await this.prisma.userLesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new BadRequestException('Lesson not found');
+    }
+
+    await this.prisma.userLesson.update({
+      where: { id: lessonId },
+      data: { recordingUrl: null },
+    });
+
+    return true;
+  }
 }
