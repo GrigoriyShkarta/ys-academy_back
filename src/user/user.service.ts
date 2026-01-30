@@ -66,6 +66,59 @@ export class UserService {
       }
     }
 
+    // Проверка дней рождения для суперадмина
+    if (user?.role === 'super_admin') {
+      const today = new Date();
+      const day = today.getDate();
+      const month = today.getMonth() + 1;
+
+      const studentsWithBirthdays = await this.prisma.user.findMany({
+        where: {
+          role: 'student',
+          isActive: true,
+          birthDate: { not: null },
+        },
+        select: {
+          id: true,
+          name: true,
+          birthDate: true,
+        },
+      });
+
+      const todayBirthdayStudents = studentsWithBirthdays.filter((s) => {
+        const bd = new Date(s.birthDate!);
+        return bd.getDate() === day && bd.getMonth() + 1 === month;
+      });
+
+      if (todayBirthdayStudents.length > 0) {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
+        for (const student of todayBirthdayStudents) {
+          const title = `Сьогодні день народження у учня: ${student.name}`;
+
+          const existingNotification = await this.prisma.notification.findFirst({
+            where: {
+              userId: id,
+              title,
+              createdAt: {
+                gte: startOfDay,
+              },
+            },
+          });
+
+          if (!existingNotification) {
+            await this.prisma.notification.create({
+              data: {
+                userId: id,
+                title,
+              },
+            });
+          }
+        }
+      }
+    }
+
     return user;
   }
 
@@ -116,27 +169,25 @@ export class UserService {
     // Загружаем курсы со всеми модулями и уроками
     const courses = (await this.prisma.course.findMany({
       include: {
-        courseModules: {
-          orderBy: { order: 'asc' },
+        modules: {
           include: {
-            module: {
+            categories: { select: { id: true, title: true, color: true } },
+            moduleLessons: {
+              orderBy: { order: 'asc' },
               include: {
-                categories: { select: { id: true, title: true, color: true } },
-                moduleLessons: {
-                  orderBy: { order: 'asc' },
-                  include: {
-                    lesson: {
-                      select: {
-                        id: true,
-                        title: true,
-                        content: true,
-                      },
-                    },
+                lesson: {
+                  select: {
+                    id: true,
+                    title: true,
+                    content: true,
                   },
                 },
               },
             },
           },
+        },
+        courseModules: {
+          select: { moduleId: true, order: true },
         },
         courseLessons: {
           orderBy: { order: 'asc' },
@@ -152,6 +203,8 @@ export class UserService {
         },
       },
     } as any)) as any[];
+
+    console.log('courses', courses);
 
     // Функция для извлечения blockId из content
     const normalizeBlocks = (content: any): number[] => {
@@ -174,48 +227,58 @@ export class UserService {
       let totalLessons = 0;
       let lessonsWithAccess = 0;
 
-      // Обрабатываем модули из courseModules (уже отсортированы по order)
-      const modules = course.courseModules.map((cm: any) => {
-        const module = cm.module;
-        const lessons = module.moduleLessons.map((ml: any) => {
-          const lesson = ml.lesson;
-          totalLessons++;
+      // Сортируем модули по порядку из courseModules
+      const orderMap = new Map<number, number>(
+        course.courseModules.map((cm: any) => [cm.moduleId, cm.order]),
+      );
 
-          // Получаем все блоки урока
-          const totalBlocks = normalizeBlocks(lesson.content);
+      // Обрабатываем модули
+      const modules = course.modules
+        .map((module: any) => {
+          const lessons = module.moduleLessons.map((ml: any) => {
+            const lesson = ml.lesson;
+            totalLessons++;
 
-          // Находим доступные блоки для пользователя
-          const accessRecord = student.userLessonAccesses.find(
-            (a) => a.lessonId === lesson.id,
-          );
+            // Получаем все блоки урока
+            const totalBlocks = normalizeBlocks(lesson.content);
 
-          const availableBlocks = accessRecord?.blocks ?? [];
-          const hasAccess = availableBlocks.length > 0;
+            // Находим доступные блоки для пользователя
+            const accessRecord = student.userLessonAccesses.find(
+              (a) => a.lessonId === lesson.id,
+            );
 
-          if (hasAccess) {
-            hasCourseAccess = true;
-            lessonsWithAccess++;
-          }
+            const availableBlocks = accessRecord?.blocks ?? [];
+            const hasAccess = availableBlocks.length > 0;
 
-          // Формат: \"доступных блоков / всего блоков\"
-          const accessString = `${availableBlocks.length}/${totalBlocks.length}`;
+            if (hasAccess) {
+              hasCourseAccess = true;
+              lessonsWithAccess++;
+            }
+
+            // Формат: \"доступных блоков / всего блоков\"
+            const accessString = `${availableBlocks.length}/${totalBlocks.length}`;
+
+            return {
+              id: lesson.id,
+              title: lesson.title,
+              access: hasAccess,
+              accessBlocks: availableBlocks,
+              accessString: accessString,
+            };
+          });
 
           return {
-            id: lesson.id,
-            title: lesson.title,
-            access: hasAccess,
-            accessBlocks: availableBlocks,
-            accessString: accessString,
+            id: module.id,
+            title: module.title,
+            categories: module.categories,
+            lessons,
           };
-        });
-
-        return {
-          id: module.id,
-          title: module.title,
-          categories: module.categories,
-          lessons,
-        };
-      });
+        })
+        .sort(
+          (a: any, b: any) =>
+            ((orderMap.get(a.id) as number) ?? 0) -
+            ((orderMap.get(b.id) as number) ?? 0),
+        );
 
       // Обрабатываем уроки курса (не в модулях)
       const courseLessons = course.courseLessons.map((cl) => {

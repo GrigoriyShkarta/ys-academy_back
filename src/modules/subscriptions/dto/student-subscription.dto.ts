@@ -20,4 +20,7 @@ export class CreateStudentSubscriptionDto {
   @IsOptional()
   @IsEnum(PaymentStatus)
   paymentStatus?: PaymentStatus;
+
+  @IsOptional()
+  lessonDays?: string[];
 }

@@ -7,4 +7,8 @@ export class UpdatePaymentStatusDto {
   @IsOptional()
   @IsInt()
   amount?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentDate?: string;
 }

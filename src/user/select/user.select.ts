@@ -3,6 +3,7 @@ export const userSelect = {
   email: true,
   name: true,
   role: true,
+  birthDate: true,
   isActive: true,
   accessExpiryDate: true,
   subscriptions: true,
@@ -29,7 +30,9 @@ export const studentSelect = {
     select: {
       id: true,
       paymentStatus: true,
+      paymentDate: true,
       amount: true,
+      createdAt: true,
       subscription: {
         select: {
           id: true,

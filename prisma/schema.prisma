@@ -259,8 +259,10 @@ model UserSubscription {
   subscriptionId Int
   paymentStatus  String @default("unpaid")
   amount         Int?
+  paymentDate    DateTime?
 
-  lessonDates DateTime[]
+  lessonDays String[] @default([])
+  lessonDates DateTime[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

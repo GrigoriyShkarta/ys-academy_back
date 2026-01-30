@@ -102,6 +102,7 @@ export class SubscriptionsService {
         userId,
         subscriptionId,
         paymentStatus: 'unpaid',
+        lessonDays: dto?.lessonDays,
         lessons: {
           create: lessonDates.map((date) => ({
             scheduledAt: new Date(date),
@@ -264,6 +265,8 @@ export class SubscriptionsService {
       where: { id: userSubscriptionId },
       data: {
         paymentStatus: dto.paymentStatus,
+        paymentDate:
+          dto.paymentStatus === 'partially_paid' ? dto?.paymentDate : null,
         amount:
           dto.paymentStatus === 'paid' || dto.paymentStatus === 'unpaid'
             ? 0
