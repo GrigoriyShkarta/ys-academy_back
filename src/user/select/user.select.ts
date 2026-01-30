@@ -31,6 +31,8 @@ export const studentSelect = {
       id: true,
       paymentStatus: true,
       paymentDate: true,
+      lessonDays: true,
+      lessonDates: true,
       amount: true,
       createdAt: true,
       subscription: {
