@@ -389,12 +389,17 @@ export class UserService {
     // Получаем текущую временную метку
     const now = Date.now();
 
-    // Сортируем: ближайшие к сегодня - сверху
+    // Сортируем: активные сначала, затем по дате уроков
     allStudents.sort((a, b) => {
+      // 1. По активности (активные выше)
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+
+      // 2. Если активность одинаковая, по дате уроков
       const dateA = getLastLessonTimestamp(a);
       const dateB = getLastLessonTimestamp(b);
 
-      // Если нет уроков - в конец
+      // Если нет уроков - в конец (внутри своей группы активности)
       if (dateA === 0 && dateB === 0) return 0;
       if (dateA === 0) return 1;
       if (dateB === 0) return -1;
