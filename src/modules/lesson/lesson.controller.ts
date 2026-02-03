@@ -95,8 +95,17 @@ export class LessonController {
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
-  getLessonById(@Param('id') id: number, @Req() req: RequestWithUser) {
-    return this.lessonService.getLesson(id, req.user.id, req.user.role);
+  getLessonById(
+    @Param('id') id: number,
+    @Req() req: RequestWithUser,
+    @Query('checkUserAccess') checkUserAccess?: string,
+  ) {
+    return this.lessonService.getLesson(
+      id,
+      req.user.id,
+      req.user.role,
+      checkUserAccess ? Number(checkUserAccess) : undefined,
+    );
   }
 
   @Post('assign')

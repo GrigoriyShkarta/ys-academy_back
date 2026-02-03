@@ -266,7 +266,7 @@ export class SubscriptionsService {
       data: {
         paymentStatus: dto.paymentStatus,
         paymentDate:
-          dto.paymentStatus === 'partially_paid' ? dto?.paymentDate : null,
+          dto?.paymentDate ?? null,
         amount:
           dto.paymentStatus === 'paid' || dto.paymentStatus === 'unpaid'
             ? 0

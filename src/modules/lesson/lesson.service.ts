@@ -483,7 +483,12 @@ export class LessonService {
     }));
   }
 
-  async getLesson(id: number, userId: number, role: string) {
+  async getLesson(
+    id: number,
+    userId: number,
+    role: string,
+    checkUserAccess?: number,
+  ) {
     const lesson = await this.prisma.lesson.findUnique({
       where: { id },
       select: {
@@ -528,9 +533,26 @@ export class LessonService {
       })),
     };
 
+    let accessBlocks: number[] | undefined;
+    if (checkUserAccess) {
+      const studentAccess = await this.prisma.userLessonAccess.findUnique({
+        where: {
+          userId_lessonId: {
+            userId: checkUserAccess,
+            lessonId: id,
+          },
+        },
+        select: { blocks: true },
+      });
+      accessBlocks = studentAccess?.blocks ?? [];
+    }
+
     // super_admin — полный доступ
     if (role === 'super_admin') {
-      return formatedLesson;
+      return {
+        ...formatedLesson,
+        ...(accessBlocks !== undefined ? { accessBlocks } : {}),
+      };
     }
 
     const access = await this.prisma.userLessonAccess.findFirst({
@@ -545,6 +567,7 @@ export class LessonService {
       return {
         ...formatedLesson,
         content: [],
+        ...(accessBlocks !== undefined ? { accessBlocks } : {}),
       };
     }
 
@@ -566,6 +589,7 @@ export class LessonService {
     return {
       ...formatedLesson,
       content: filteredContent,
+      ...(accessBlocks !== undefined ? { accessBlocks } : {}),
     };
   }
 
