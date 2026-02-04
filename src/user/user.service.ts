@@ -97,15 +97,17 @@ export class UserService {
         for (const student of todayBirthdayStudents) {
           const title = `Сьогодні день народження у учня: ${student.name}`;
 
-          const existingNotification = await this.prisma.notification.findFirst({
-            where: {
-              userId: id,
-              title,
-              createdAt: {
-                gte: startOfDay,
+          const existingNotification = await this.prisma.notification.findFirst(
+            {
+              where: {
+                userId: id,
+                title,
+                createdAt: {
+                  gte: startOfDay,
+                },
               },
             },
-          });
+          );
 
           if (!existingNotification) {
             await this.prisma.notification.create({
@@ -136,7 +138,7 @@ export class UserService {
       .flatMap((sub) => sub.lessons)
       .filter(
         (lesson) =>
-          lesson.status === 'pending' &&
+          (lesson.status === 'pending' || lesson.status === 'transfer') &&
           this.isLessonCompleted(new Date(lesson.scheduledAt), now),
       );
 
@@ -203,8 +205,6 @@ export class UserService {
         },
       },
     } as any)) as any[];
-
-    console.log('courses', courses);
 
     // Функция для извлечения blockId из content
     const normalizeBlocks = (content: any): number[] => {
