@@ -91,7 +91,7 @@ export class SubscriptionsService {
       throw new BadRequestException('Subscription not found');
     }
 
-    if (lessonDates.length !== subscription.lessons_count) {
+    if (lessonDates && lessonDates?.length > 0 && lessonDates?.length !== subscription.lessons_count) {
       throw new BadRequestException(
         'Количество дат должно соответствовать количеству уроков',
       );
@@ -103,8 +103,9 @@ export class SubscriptionsService {
         subscriptionId,
         paymentStatus: 'unpaid',
         lessonDays: dto?.lessonDays,
+        lessonDates: lessonDates?.map((date) => new Date(date)),
         lessons: {
-          create: lessonDates.map((date) => ({
+          create: lessonDates?.map((date) => ({
             scheduledAt: new Date(date),
             status: 'pending',
           })),
@@ -208,6 +209,10 @@ export class SubscriptionsService {
                   status: 'pending',
                 })),
               }
+            : undefined,
+          lessonDays: dto.lessonDays ?? existingSubscription.lessonDays,
+          lessonDates: lessonDates
+            ? lessonDates.map((date) => new Date(date))
             : undefined,
         },
         include: {

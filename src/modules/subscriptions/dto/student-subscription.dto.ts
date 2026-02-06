@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsInt, IsISO8601, IsOptional } from 'class-validator';
+import { IsArray, IsEnum, IsInt, IsISO8601, IsOptional, IsString } from 'class-validator';
 
 enum PaymentStatus {
   PAID = 'paid',
@@ -14,13 +14,16 @@ export class CreateStudentSubscriptionDto {
   subscriptionId: number;
 
   @IsArray()
+  @IsOptional()
   @IsISO8601({}, { each: true })
-  lessonDates: string[];
+  lessonDates?: string[];
 
   @IsOptional()
   @IsEnum(PaymentStatus)
   paymentStatus?: PaymentStatus;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   lessonDays?: string[];
 }

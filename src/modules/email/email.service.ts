@@ -142,7 +142,7 @@ export class EmailService {
           </div>
           <div class="email-footer">
             <img src="cid:ys-vocal-academy-logo" alt="YS Vocal Academy logo" style="width:60px;display:block;margin:0 auto 6px auto;">
-            <p>з турботою про ваш вокальний розвиток</p>
+            <p>З турботою про ваш вокальний розвиток</p>
             <p class="brand">YS Vocal Academy</p>
           </div>
         </div>

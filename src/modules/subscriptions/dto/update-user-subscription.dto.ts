@@ -24,4 +24,9 @@ export class UpdateStudentSubscriptionDto {
   @IsOptional()
   @IsNumber()
   amount?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  lessonDays?: string[];
 }
