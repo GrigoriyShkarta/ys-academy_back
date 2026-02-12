@@ -197,6 +197,7 @@ export class LessonService {
     const content = await this.resolveMediaLinksInContent(dto.blocks || []);
 
     const moduleIds = dto.moduleIds?.map(Number) ?? [];
+    const courseIds = dto.courseIds?.map(Number) ?? [];
 
     // 1️⃣ Получаем последние order для каждого модуля
     const lastOrders = moduleIds.length
@@ -214,6 +215,24 @@ export class LessonService {
     const orderMap = new Map<number, number>();
     lastOrders.forEach((row) => {
       orderMap.set(row.moduleId, row._max.order ?? -1);
+    });
+
+    // Получаем последние order для каждого курса
+    const lastCourseOrders = courseIds.length
+      ? await this.prisma.courseLesson.groupBy({
+          by: ['courseId'],
+          where: {
+            courseId: { in: courseIds },
+          },
+          _max: {
+            order: true,
+          },
+        })
+      : [];
+
+    const courseOrderMap = new Map<number, number>();
+    lastCourseOrders.forEach((row) => {
+      courseOrderMap.set(row.courseId, row._max.order ?? -1);
     });
 
     // 2️⃣ Создаём урок + связи
@@ -234,6 +253,15 @@ export class LessonService {
               create: moduleIds.map((moduleId) => ({
                 module: { connect: { id: moduleId } },
                 order: (orderMap.get(moduleId) ?? -1) + 1,
+              })),
+            }
+          : undefined,
+
+        courseLessons: courseIds.length
+          ? {
+              create: courseIds.map((courseId) => ({
+                course: { connect: { id: courseId } },
+                order: (courseOrderMap.get(courseId) ?? -1) + 1,
               })),
             }
           : undefined,
@@ -308,6 +336,26 @@ export class LessonService {
             moduleId,
             lessonId: id,
             order: index + 1, // Устанавливаем порядок
+          })),
+        });
+      }
+
+      // 4. Удаляем все старые связи CourseLesson для этого урока
+      await tx.courseLesson.deleteMany({
+        where: { lessonId: id },
+      });
+
+      // 5. Создаем новые связи CourseLesson
+      if (dto?.courseIds && dto.courseIds.length > 0) {
+        const validCourseIds = dto.courseIds
+          .filter((id) => !isNaN(Number(id)))
+          .map((id) => Number(id));
+
+        await tx.courseLesson.createMany({
+          data: validCourseIds.map((courseId, index) => ({
+            courseId,
+            lessonId: id,
+            order: index + 1,
           })),
         });
       }
@@ -407,6 +455,16 @@ export class LessonService {
             },
           },
         },
+        courseLessons: {
+          select: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        },
         // добавляй другие поля по необходимости
       },
       ...(isAll ? {} : { skip, take }),
@@ -415,7 +473,9 @@ export class LessonService {
     const lessonsWithModules = lessons.map((lesson) => ({
       ...lesson,
       modules: lesson.moduleLessons.map((ml) => ml.module),
+      courses: lesson.courseLessons.map((cl) => cl.course),
       moduleLessons: undefined, // удаляем старое поле, если не нужно
+      courseLessons: undefined,
     }));
 
     const totalPages = isAll ? 1 : Math.ceil(totalCount / take);
@@ -510,6 +570,18 @@ export class LessonService {
           },
         },
 
+        // Добавляем курсы, к которым привязан урок
+        courseLessons: {
+          select: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        },
+
         // Добавляем категории урока
         categories: {
           select: {
@@ -530,6 +602,10 @@ export class LessonService {
       modules: lesson.moduleLessons.map((ml) => ({
         id: ml.module.id,
         title: ml.module.title,
+      })),
+      courses: lesson.courseLessons.map((cl) => ({
+        id: cl.course.id,
+        title: cl.course.title,
       })),
     };
 

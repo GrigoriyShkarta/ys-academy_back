@@ -82,4 +82,8 @@ export class CreateLessonDto {
   @IsOptional()
   @IsArray()
   moduleIds?: number[];
+
+  @IsOptional()
+  @IsArray()
+  courseIds?: number[];
 }
