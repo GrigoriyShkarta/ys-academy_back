@@ -97,11 +97,19 @@ export class SubscriptionsService {
       );
     }
 
+    const lastLessonDate =
+      lessonDates && lessonDates.length > 0
+        ? new Date(
+            Math.max(...lessonDates.map((date) => new Date(date).getTime())),
+          )
+        : null;
+
     await this.prisma.userSubscription.create({
       data: {
         userId,
         subscriptionId,
         paymentStatus: 'unpaid',
+        paymentDate: lastLessonDate,
         lessonDays: dto?.lessonDays,
         lessonDates: lessonDates?.map((date) => new Date(date)),
         lessons: {
@@ -191,12 +199,20 @@ export class SubscriptionsService {
         });
       }
 
+      const lastLessonDate =
+        lessonDates && lessonDates.length > 0
+          ? new Date(
+              Math.max(...lessonDates.map((date) => new Date(date).getTime())),
+            )
+          : undefined;
+
       // 2. Обновляем основную информацию подписки
       await tx.userSubscription.update({
         where: { id: userSubscriptionId },
         data: {
           subscriptionId: subscriptionId ?? existingSubscription.subscriptionId,
           paymentStatus: paymentStatus ?? existingSubscription.paymentStatus,
+          paymentDate: lastLessonDate,
           amount:
             paymentStatus === 'paid' || paymentStatus === 'unpaid'
               ? 0
