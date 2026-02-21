@@ -111,7 +111,10 @@ export class SubscriptionsService {
         paymentStatus: 'unpaid',
         lessonDays: dto?.lessonDays,
         lessonDates: lessonDates?.map((date) => new Date(date)),
-        paymentDate: lastLessonDate,
+        paymentDate: dto?.paymentDate ? new Date(dto.paymentDate) : new Date(),
+        nextPaymentDate: dto?.nextPaymentDate
+          ? new Date(dto.nextPaymentDate)
+          : lastLessonDate,
         lessons: {
           create: lessonDates?.map((date) => ({
             scheduledAt: new Date(date),
@@ -209,6 +212,18 @@ export class SubscriptionsService {
             paymentStatus === 'paid' || paymentStatus === 'unpaid'
               ? 0
               : (amount ?? existingSubscription.amount),
+          paymentDate: dto.paymentDate
+            ? new Date(dto.paymentDate)
+            : undefined,
+          nextPaymentDate: dto.nextPaymentDate
+            ? new Date(dto.nextPaymentDate)
+            : lessonDates
+              ? new Date(
+                  Math.max(
+                    ...lessonDates.map((date) => new Date(date).getTime()),
+                  ),
+                )
+              : undefined,
           // Создаём новые уроки, если переданы даты
           lessons: lessonDates
             ? {
@@ -268,18 +283,36 @@ export class SubscriptionsService {
   ) {
     const subscription = await this.prisma.userSubscription.findUnique({
       where: { id: userSubscriptionId },
+      include: {
+        lessons: {
+          orderBy: { scheduledAt: 'desc' },
+          take: 1,
+        },
+      },
     });
 
     if (!subscription) {
       throw new BadRequestException('User subscription not found');
     }
 
+    let nextPaymentDate: Date | null = subscription.nextPaymentDate;
+
+    // Логика для даты следующей оплаты
+    if (dto.paymentStatus === 'partial' || dto.paymentStatus === 'partially_paid') {
+      // При частичной оплате берем дату, переданную с фронта
+      nextPaymentDate = dto.nextPaymentDate ? new Date(dto.nextPaymentDate) : null;
+    } else if (dto.paymentStatus === 'paid') {
+      // При полной оплате подставляем дату последнего урока
+      const lastLesson = subscription.lessons[0];
+      nextPaymentDate = lastLesson ? new Date(lastLesson.scheduledAt) : new Date();
+    }
+
     return this.prisma.userSubscription.update({
       where: { id: userSubscriptionId },
       data: {
         paymentStatus: dto.paymentStatus,
-        paymentDate:
-          dto?.paymentDate ?? null,
+        paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : null,
+        nextPaymentDate,
         amount:
           dto.paymentStatus === 'paid' || dto.paymentStatus === 'unpaid'
             ? 0

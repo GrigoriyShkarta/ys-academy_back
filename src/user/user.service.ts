@@ -161,12 +161,49 @@ export class UserService {
       select: studentSelect,
     });
 
-    updatedStudent?.subscriptions.forEach((sub) => {
+    if (!updatedStudent) return null;
+
+    // Хелпер для трансформации подписки (добавление nextPaymentDate с фолбеком)
+    const transformSubscription = (sub: any) => {
+      const lessons = sub.lessons || [];
+      const lastLessonDate =
+        lessons.length > 0
+          ? new Date(
+              Math.max(...lessons.map((l: any) => new Date(l.scheduledAt).getTime())),
+            )
+          : null;
+
+      return {
+        ...sub,
+        nextPaymentDate: sub.nextPaymentDate
+          ? new Date(sub.nextPaymentDate)
+          : lastLessonDate,
+      };
+    };
+
+    // Трансформируем все подписки студента
+    const transformedSubscriptions = (updatedStudent.subscriptions || []).map(
+      transformSubscription,
+    );
+
+    // Сортируем уроки внутри подписок
+    transformedSubscriptions.forEach((sub: any) => {
       sub.lessons.sort(
         (a, b) =>
           new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
       );
     });
+
+    // Находим общую дату следующей оплаты (самая поздняя из всех абонементов)
+    const rootNextPaymentDate = transformedSubscriptions.length > 0
+      ? new Date(
+          Math.max(
+            ...transformedSubscriptions.map((sub: any) =>
+              sub.nextPaymentDate ? sub.nextPaymentDate.getTime() : 0,
+            ),
+          ),
+        )
+      : null;
 
     // Загружаем курсы со всеми модулями и уроками
     const courses = (await this.prisma.course.findMany({
@@ -333,6 +370,11 @@ export class UserService {
 
     return {
       ...updatedStudent,
+      subscriptions: transformedSubscriptions,
+      nextPaymentDate:
+        rootNextPaymentDate && rootNextPaymentDate.getTime() > 0
+          ? rootNextPaymentDate
+          : null,
       courses: coursesWithAccess,
     };
   }
@@ -367,55 +409,80 @@ export class UserService {
       this.prisma.user.count({ where }),
     ]);
 
-    // Функция для получения последней даты урока
-    const getLastLessonTimestamp = (student: any): number => {
+    // Функция для получения даты для сортировки (дата оплаты или последнего урока)
+    const getSortTimestamp = (student: any): number => {
       if (!student.subscriptions || student.subscriptions.length === 0) {
         return 0;
       }
 
-      const allLessons = student.subscriptions.flatMap(
-        (sub: any) => sub.lessons || [],
-      );
+      // Для каждого абонемента находим его "дату актуальности"
+      const dates = student.subscriptions.map((sub: any) => {
+        if (sub.nextPaymentDate) {
+          return new Date(sub.nextPaymentDate).getTime();
+        }
 
-      if (allLessons.length === 0) return 0;
+        const subLessons = sub.lessons || [];
+        if (subLessons.length === 0) return 0;
 
-      return Math.max(
-        ...allLessons.map((lesson: any) =>
-          new Date(lesson.scheduledAt).getTime(),
-        ),
-      );
+        return Math.max(
+          ...subLessons.map((lesson: any) =>
+            new Date(lesson.scheduledAt).getTime(),
+          ),
+        );
+      });
+
+      // Берем самую позднюю дату среди всех абонементов студента
+      return Math.max(...dates);
     };
 
-    // Получаем текущую временную метку
-    const now = Date.now();
+    console.log('allStudents', allStudents)
 
-    // Сортируем: активные сначала, затем по дате уроков
+    // Сортируем: активные сначала, затем по дате оплаты/уроков
     allStudents.sort((a, b) => {
       // 1. По активности (активные выше)
       if (a.isActive && !b.isActive) return -1;
       if (!a.isActive && b.isActive) return 1;
 
-      // 2. Если активность одинаковая, по дате уроков
-      const dateA = getLastLessonTimestamp(a);
-      const dateB = getLastLessonTimestamp(b);
+      // 2. Если активность одинаковая, по дате
+      const dateA = getSortTimestamp(a);
+      const dateB = getSortTimestamp(b);
 
-      // Если нет уроков - в конец (внутри своей группы активности)
+      // Если нет дат - в конец
       if (dateA === 0 && dateB === 0) return 0;
       if (dateA === 0) return 1;
       if (dateB === 0) return -1;
 
-      // Вычисляем разницу с сегодняшним днем (по модулю)
-      const diffA = Math.abs(now - dateA);
-      const diffB = Math.abs(now - dateB);
-
-      // Чем меньше разница - тем выше в списке
-      return diffA - diffB;
+      // Сортировка по дате (по возрастанию - самые близкие к сегодняшнему дню сверху)
+      return dateA - dateB;
     });
 
-    // Применяем пагинацию
-    const students = isAll
-      ? allStudents
-      : allStudents.slice(skip, skip! + limit);
+    // Применяем пагинацию и ГАРАНТИРОВАННО добавляем поле nextPaymentDate везде
+    const students = (isAll ? allStudents : allStudents.slice(skip, skip! + limit)).map(
+      (student) => {
+        // Трансформируем подписки для каждого студента в списке
+        const transformedSubs = (student.subscriptions || []).map((sub: any) => {
+          const lessons = sub.lessons || [];
+          const lastLessonDate = lessons.length > 0
+            ? new Date(Math.max(...lessons.map((l: any) => new Date(l.scheduledAt).getTime())))
+            : null;
+          
+          return {
+            ...sub,
+            nextPaymentDate: sub.nextPaymentDate ? new Date(sub.nextPaymentDate) : lastLessonDate
+          };
+        });
+
+        const nextDateTimestamp = transformedSubs.length > 0
+          ? Math.max(...transformedSubs.map(s => s.nextPaymentDate ? s.nextPaymentDate.getTime() : 0))
+          : 0;
+
+        return {
+          ...student,
+          subscriptions: transformedSubs,
+          nextPaymentDate: nextDateTimestamp > 0 ? new Date(nextDateTimestamp) : null,
+        };
+      },
+    );
 
     const totalPages = Math.ceil(total / limit);
 

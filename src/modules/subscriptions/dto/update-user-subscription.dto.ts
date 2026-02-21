@@ -29,4 +29,12 @@ export class UpdateStudentSubscriptionDto {
   @IsArray()
   @IsString({ each: true })
   lessonDays?: string[];
+
+  @IsOptional()
+  @IsISO8601()
+  paymentDate?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  nextPaymentDate?: string;
 }

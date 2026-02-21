@@ -3,10 +3,44 @@ export const userSelect = {
   email: true,
   name: true,
   role: true,
+  photo: true,
+  city: true,
+  telegram: true,
+  instagram: true,
   birthDate: true,
+  musicLevel: true,
+  vocalExperience: true,
+  goals: true,
   isActive: true,
   accessExpiryDate: true,
-  subscriptions: true,
+  subscriptions: {
+    select: {
+      id: true,
+      paymentStatus: true,
+      paymentDate: true,
+      nextPaymentDate: true,
+      lessonDays: true,
+      lessonDates: true,
+      amount: true,
+      createdAt: true,
+      subscription: {
+        select: {
+          id: true,
+          title: true,
+          lessons_count: true,
+          price: true,
+        },
+      },
+      lessons: {
+        select: {
+          id: true,
+          scheduledAt: true,
+          status: true,
+          recordingUrl: true,
+        },
+      },
+    },
+  },
   notifications: true,
 };
 
@@ -31,6 +65,7 @@ export const studentSelect = {
       id: true,
       paymentStatus: true,
       paymentDate: true,
+      nextPaymentDate: true,
       lessonDays: true,
       lessonDates: true,
       amount: true,

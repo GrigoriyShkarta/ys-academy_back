@@ -11,4 +11,8 @@ export class UpdatePaymentStatusDto {
   @IsOptional()
   @IsString()
   paymentDate?: string;
+
+  @IsOptional()
+  @IsString()
+  nextPaymentDate?: string;
 }
