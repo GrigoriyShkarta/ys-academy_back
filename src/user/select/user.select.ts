@@ -12,6 +12,8 @@ export const userSelect = {
   vocalExperience: true,
   goals: true,
   isActive: true,
+  status: true,
+  deactivationDate: true,
   accessExpiryDate: true,
   subscriptions: {
     select: {
@@ -58,6 +60,8 @@ export const studentSelect = {
   vocalExperience: true,
   goals: true,
   isActive: true,
+  status: true,
+  deactivationDate: true,
   accessExpiryDate: true,
   notifications: true,
   subscriptions: {

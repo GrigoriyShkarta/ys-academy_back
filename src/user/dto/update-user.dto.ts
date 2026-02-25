@@ -1,5 +1,6 @@
-import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { UserStatus } from 'generated/prisma';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -56,4 +57,11 @@ export class UpdateUserDto {
 
   @IsOptional()
   accessExpiryDate?: string;
+
+  @IsOptional()
+  @IsEnum(UserStatus)
+  status?: UserStatus;
+
+  @IsOptional()
+  deactivationDate?: string;
 }

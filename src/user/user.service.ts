@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { UserStatus } from 'generated/prisma';
 import { CreateUserDto } from './dto/create-user.dto';
 import { studentSelect, userSelect } from './select/user.select';
 import * as bcrypt from 'bcrypt';
@@ -30,10 +31,12 @@ export class UserService {
       user?.accessExpiryDate &&
       new Date(user.accessExpiryDate) < new Date()
     ) {
-      await this.prisma.user.update({
-        where: { id },
-        data: { isActive: false },
-      });
+      if (user.isActive) {
+        await this.prisma.user.update({
+          where: { id },
+          data: { isActive: false, status: UserStatus.inactive },
+        });
+      }
       throw new UnauthorizedException('validation.user_is_not_active');
     }
 
@@ -57,12 +60,19 @@ export class UserService {
         lastLessonDate.getTime() + 7 * 24 * 60 * 60 * 1000,
       );
 
-      if (new Date() > deadline && user?.role === 'student') {
+      if (new Date() > deadline && user?.role === 'student' && user.isActive) {
+        const gracePeriod = new Date();
+        gracePeriod.setDate(gracePeriod.getDate() + 7);
+
         await this.prisma.user.update({
           where: { id },
-          data: { isActive: false },
+          data: {
+            isActive: false,
+            status: UserStatus.inactive,
+            accessExpiryDate: gracePeriod,
+          },
         });
-        throw new UnauthorizedException('validation.user_is_not_active');
+        // Note: No exception thrown here anymore, as the user now has a grace period (accessExpiryDate)
       }
     }
 
@@ -530,16 +540,38 @@ export class UserService {
       photoPublicId = uploaded.public_id;
     }
 
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
     // Подготавливаем данные для обновления
-    const updateData = {
+    const updateData: any = {
       ...dto,
       birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
-      accessExpiryDate: dto.accessExpiryDate
-        ? new Date(dto.accessExpiryDate)
-        : undefined,
       photo: photoUrl,
       photoId: photoPublicId,
     };
+
+    // Логика смены статуса и установки grace period
+    if (dto.isActive === false && user?.isActive === true) {
+      const gracePeriod = new Date();
+      gracePeriod.setDate(gracePeriod.getDate() + 7);
+      updateData.accessExpiryDate = gracePeriod;
+      updateData.status = UserStatus.inactive;
+    } else if (dto.isActive === true && user?.isActive === false) {
+      updateData.status = UserStatus.active;
+      updateData.accessExpiryDate = null;
+    } else if (dto.isActive === undefined && dto.status) {
+      // Синхронизируем isActive при изменении status
+      updateData.isActive = dto.status === UserStatus.active;
+      if (dto.status === UserStatus.inactive && user?.status === UserStatus.active) {
+        const gracePeriod = new Date();
+        gracePeriod.setDate(gracePeriod.getDate() + 7);
+        updateData.accessExpiryDate = gracePeriod;
+      }
+    }
+
+    if (dto.accessExpiryDate) {
+      updateData.accessExpiryDate = new Date(dto.accessExpiryDate);
+    }
 
     // Хешируем пароль, если он передан
     if (dto?.password) {

@@ -20,6 +20,11 @@ enum Role {
   super_admin
 }
 
+enum UserStatus {
+  active
+  inactive
+}
+
 enum PaymentStatus {
   paid
   partial_paid
@@ -52,11 +57,13 @@ model User {
   goals                String?
   password             String
   isActive             Boolean   @default(true)
+  status               UserStatus @default(active)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   role                 Role      @default(student)
   refreshToken         String?   @map("refresh_token")
   previousRefreshToken String?   @map("previous_refresh_token")
+  deactivationDate     DateTime? @map("deactivation_date")
   accessExpiryDate     DateTime? @map("access_expiry_date")
 
   Audio Audio[]

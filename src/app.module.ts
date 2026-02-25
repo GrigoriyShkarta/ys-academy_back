@@ -16,6 +16,7 @@ import { TrackersModule } from './modules/trackers/trackers.module';
 import { EmailModule } from './modules/email/email.module';
 import { BoardSyncGateway } from './board-sync.gateway';
 import { BoardModule } from './modules/boards/board.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { BoardModule } from './modules/boards/board.module';
     TrackersModule,
     EmailModule,
     BoardModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],
