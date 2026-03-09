@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { PrismaService } from '../../prisma.service';
 import { FileService } from '../file/file.service';
-import { Prisma } from 'generated/prisma';
+import { Prisma } from '@prisma/client';
 import {
   LessonBlock,
   LessonNode,

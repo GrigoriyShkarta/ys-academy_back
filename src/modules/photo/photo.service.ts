@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma.service';
 import { FileService } from '../file/file.service';
 import { LessonBlock } from '../../common/types/helpTypes';
 import { cleanNodesArray } from '../../common/helpers';
-import { Prisma } from 'generated/prisma';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PhotoService {

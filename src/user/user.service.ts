@@ -1,10 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { UserStatus } from 'generated/prisma';
+import { UserStatus } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { studentSelect, userSelect } from './select/user.select';
 import * as bcrypt from 'bcrypt';
-import { Prisma } from 'generated/prisma';
+import { Prisma } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FileService } from '../modules/file/file.service';
 

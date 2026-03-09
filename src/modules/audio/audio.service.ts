@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { FileService } from '../file/file.service';
 import { LessonBlock } from '../../common/types/helpTypes';
-import { Prisma } from 'generated/prisma';
+import { Prisma } from '@prisma/client';
 import { cleanNodesArray } from '../../common/helpers';
 
 @Injectable()

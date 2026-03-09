@@ -5,7 +5,7 @@ import {
   MoveTrackerTaskDto,
   UpdateTrackerTaskDto,
 } from './dto/tracker.dto';
-import { TrackerColumnId } from 'generated/prisma/client';
+import { TrackerColumnId } from '@prisma/client';
 import { ToggleSubtaskDto } from './dto/subtask.dto';
 import { EmailService } from '../email/email.service';
 

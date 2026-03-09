@@ -1,0 +1,334 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   Int                @id @default(autoincrement())
+  email                String             @unique
+  name                 String
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  role                 Role               @default(student)
+  password             String
+  refreshToken         String?            @map("refresh_token")
+  birthDate            DateTime?
+  city                 String?
+  goals                String?
+  instagram            String?
+  musicLevel           String?
+  photo                String?
+  photoId              String?
+  previousRefreshToken String?            @map("previous_refresh_token")
+  telegram             String?
+  vocalExperience      String?
+  isActive             Boolean            @default(true)
+  accessExpiryDate     DateTime?          @map("access_expiry_date")
+  deactivationDate     DateTime?          @map("deactivation_date")
+  status               UserStatus         @default(active)
+  Audio                Audio[]
+  notifications        Notification[]
+  Photo                Photo[]
+  trackerTasks         TrackerTask[]
+  userLessonAccesses   UserLessonAccess[]
+  subscriptions        UserSubscription[]
+  Video                Video[]
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  title     String
+  read      Boolean   @default(false)
+  createdAt DateTime? @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserLessonAccess {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  lessonId  Int
+  blocks    Int[]    @default([])
+  createdAt DateTime @default(now())
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+model Module {
+  id            Int            @id @default(autoincrement())
+  title         String
+  publicImgId   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  url           String?
+  courseModules CourseModule[]
+  moduleLessons ModuleLesson[]
+  courses       Course[]       @relation("CourseModules")
+  categories    Category[]     @relation("ModuleCategories")
+  lessons       Lesson[]       @relation("ModuleLessons")
+}
+
+model Course {
+  id            Int            @id @default(autoincrement())
+  url           String?
+  title         String
+  createdAt     DateTime?      @default(now())
+  publicImgId   String?
+  updatedAt     DateTime?      @updatedAt
+  order         Int            @default(autoincrement())
+  courseLessons CourseLesson[]
+  courseModules CourseModule[]
+  categories    Category[]     @relation("CourseCategories")
+  lessons       Lesson[]       @relation("CourseLessons")
+  modules       Module[]       @relation("CourseModules")
+}
+
+model Lesson {
+  id                 Int                @id @default(autoincrement())
+  title              String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  content            Json               @default("[]")
+  cover              String?
+  publicImgId        String?
+  courseLessons      CourseLesson[]
+  moduleLessons      ModuleLesson[]
+  userLessonAccesses UserLessonAccess[]
+  audios             Audio[]            @relation("AudioLessons")
+  courses            Course[]           @relation("CourseLessons")
+  categories         Category[]         @relation("LessonCategories")
+  modules            Module[]           @relation("ModuleLessons")
+  photos             Photo[]            @relation("PhotoLessons")
+  videos             Video[]            @relation("VideoLessons")
+}
+
+model CourseLesson {
+  id       Int    @id @default(autoincrement())
+  courseId Int
+  lessonId Int
+  order    Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, order])
+}
+
+model ModuleLesson {
+  id       Int    @id @default(autoincrement())
+  moduleId Int
+  lessonId Int
+  order    Int
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([moduleId, lessonId])
+  @@index([moduleId, order])
+}
+
+model CourseModule {
+  id       Int    @id @default(autoincrement())
+  courseId Int
+  moduleId Int
+  order    Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, moduleId])
+  @@index([courseId, order])
+}
+
+model Audio {
+  id         Int        @id @default(autoincrement())
+  title      String
+  url        String
+  publicId   String
+  createdAt  DateTime   @default(now())
+  userId     Int?
+  user       User?      @relation(fields: [userId], references: [id])
+  categories Category[] @relation("AudioCategories")
+  lessons    Lesson[]   @relation("AudioLessons")
+}
+
+model Photo {
+  id         Int        @id @default(autoincrement())
+  title      String
+  url        String
+  publicId   String
+  createdAt  DateTime   @default(now())
+  userId     Int?
+  user       User?      @relation(fields: [userId], references: [id])
+  categories Category[] @relation("PhotoCategories")
+  lessons    Lesson[]   @relation("PhotoLessons")
+}
+
+model Video {
+  id         Int        @id @default(autoincrement())
+  title      String
+  url        String
+  createdAt  DateTime   @default(now())
+  userId     Int?
+  publicId   String?
+  user       User?      @relation(fields: [userId], references: [id])
+  categories Category[] @relation("VideoCategories")
+  lessons    Lesson[]   @relation("VideoLessons")
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  title     String   @unique
+  color     String?  @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  audios    Audio[]  @relation("AudioCategories")
+  courses   Course[] @relation("CourseCategories")
+  lessons   Lesson[] @relation("LessonCategories")
+  modules   Module[] @relation("ModuleCategories")
+  photos    Photo[]  @relation("PhotoCategories")
+  videos    Video[]  @relation("VideoCategories")
+}
+
+model UserSubscription {
+  id              Int          @id @default(autoincrement())
+  userId          Int
+  subscriptionId  Int
+  paymentStatus   String       @default("unpaid")
+  amount          Int?
+  lessonDates     DateTime[]   @default([])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  paymentDate     DateTime?
+  lessonDays      String[]     @default([])
+  nextPaymentDate DateTime?
+  lessons         UserLesson[]
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  student         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([subscriptionId])
+}
+
+model UserLesson {
+  id                 Int              @id @default(autoincrement())
+  userSubscriptionId Int
+  scheduledAt        DateTime
+  status             String           @default("pending")
+  completedAt        DateTime?
+  transferredTo      DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  recordingUrl       String?
+  userSubscription   UserSubscription @relation(fields: [userSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([userSubscriptionId])
+  @@index([scheduledAt])
+}
+
+model Subscription {
+  id               Int                @id @default(autoincrement())
+  title            String             @unique
+  price            Int
+  lessons_count    Int
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  userSubsriptions UserSubscription[]
+}
+
+model TrackerTask {
+  id          Int              @id @default(autoincrement())
+  userId      Int
+  title       String
+  columnId    TrackerColumnId
+  order       Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  description String?
+  subtasks    TrackerSubtask[]
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, columnId])
+  @@index([userId, columnId, order])
+}
+
+model TrackerSubtask {
+  id        Int         @id @default(autoincrement())
+  taskId    Int
+  title     String
+  completed Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  task      TrackerTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model BoardRecord {
+  id        Int      @id @default(autoincrement())
+  roomId    String
+  recordId  String
+  content   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([roomId, recordId])
+  @@index([roomId])
+  @@map("board_records")
+}
+
+enum Role {
+  student
+  admin
+  super_admin
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum PaymentStatus {
+  paid
+  partial_paid
+  unpaid
+}
+
+enum TrackerColumnId {
+  homework
+  songs
+  in_progress
+  completed
+  plans
+  song_plans
+  song_in_progress
+  song_ready
+}
+
+enum LessonItemType {
+  text
+  video
+  audio
+  image
+}
+
+enum LessonItemSource {
+  custom
+  bank
+  uploaded
+}
+
+enum LessonStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  TRANSFERRED
+  TRANSFER_REQUEST
+}
+
+

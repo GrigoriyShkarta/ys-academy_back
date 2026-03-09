@@ -9,7 +9,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TrackerColumnId } from 'generated/prisma/client';
+import { TrackerColumnId } from '@prisma/client';
 
 class SubtaskInputDto {
   @IsString()
