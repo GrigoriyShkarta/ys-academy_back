@@ -12,15 +12,19 @@ async function bootstrap() {
   app.useWebSocketAdapter(new IoAdapter(app));
 
   app.enableCors({
-    // origin: [
-    //   'http://localhost:3000',
-    //   'https://ys-academy.vercel.app',
-    //   'https://ys-academy-dev.vercel.app',
-    // ],
     origin: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    // allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'X-Requested-With',
+      'Access-Control-Allow-Origin',
+      'Access-Control-Allow-Credentials',
+    ],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   console.log('CORS ENABLED');

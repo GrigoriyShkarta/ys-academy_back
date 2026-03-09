@@ -12,11 +12,7 @@ import { BoardService } from './modules/boards/board.service';
 @WebSocketGateway({
   namespace: 'board-sync',
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'https://ys-academy.vercel.app',
-      'https://ys-academy-dev.vercel.app',
-    ],
+    origin: true,
     methods: ['GET', 'POST'],
     credentials: true,
   },
