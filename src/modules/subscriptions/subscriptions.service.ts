@@ -91,11 +91,6 @@ export class SubscriptionsService {
       throw new BadRequestException('Subscription not found');
     }
 
-    if (lessonDates && lessonDates?.length > 0 && lessonDates?.length !== subscription.lessons_count) {
-      throw new BadRequestException(
-        'Количество дат должно соответствовать количеству уроков',
-      );
-    }
 
     const lastLessonDate =
       lessonDates && lessonDates.length > 0
@@ -157,41 +152,8 @@ export class SubscriptionsService {
         throw new BadRequestException('New subscription not found');
       }
 
-      // Проверяем количество дат
-      if (lessonDates && lessonDates.length !== newSubscription.lessons_count) {
-        throw new BadRequestException(
-          `Количество дат должно быть равно ${newSubscription.lessons_count}`,
-        );
-      }
     }
 
-    // Если передаются новые даты — проверяем их количество
-    if (lessonDates) {
-      let targetLessonsCount: number;
-
-      if (
-        subscriptionId &&
-        subscriptionId !== existingSubscription.subscriptionId
-      ) {
-        const newSubscription = await this.prisma.subscription.findUnique({
-          where: { id: subscriptionId },
-        });
-
-        if (!newSubscription) {
-          throw new BadRequestException('New subscription not found');
-        }
-
-        targetLessonsCount = newSubscription.lessons_count;
-      } else {
-        targetLessonsCount = existingSubscription.subscription.lessons_count;
-      }
-
-      if (lessonDates.length !== targetLessonsCount) {
-        throw new BadRequestException(
-          `Количество дат должно быть равно ${targetLessonsCount}`,
-        );
-      }
-    }
 
     // Обновляем подписку и уроки в транзакции
     return this.prisma.$transaction(async (tx) => {
