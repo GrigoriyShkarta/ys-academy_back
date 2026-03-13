@@ -569,7 +569,9 @@ export class UserService {
       }
     }
 
-    if (dto.accessExpiryDate) {
+    if (dto.accessExpiryDate === "") {
+      updateData.accessExpiryDate = null;
+    } else if (dto.accessExpiryDate) {
       updateData.accessExpiryDate = new Date(dto.accessExpiryDate);
     }
 
