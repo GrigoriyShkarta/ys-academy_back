@@ -158,6 +158,85 @@ export class LessonService {
     return cloned;
   }
 
+  private async processBase64Media(content: LessonBlock[]): Promise<void> {
+    const collectAndUpload = async (node: LessonNode): Promise<void> => {
+      if (!node || typeof node !== 'object') return;
+
+      const props = node.props ?? {};
+      const url = props['url'];
+
+      if (typeof url === 'string' && url.startsWith('data:')) {
+        let fileType: any = 'image';
+        if (url.startsWith('data:audio')) fileType = 'video';
+        else if (url.startsWith('data:video')) fileType = 'video';
+        else if (url.startsWith('data:image')) fileType = 'image';
+        else fileType = 'raw';
+
+        try {
+          const uploaded = await this.fileService.uploadBase64(url, fileType);
+
+          let mediaId: number;
+          if (fileType === 'image') {
+            const photo = await this.prisma.photo.create({
+              data: {
+                title: (props['name'] as string) || 'Uploaded from lesson',
+                url: uploaded.url,
+                publicId: uploaded.public_id,
+              },
+            });
+            mediaId = photo.id;
+          } else if (url.startsWith('data:audio')) {
+            const audio = await this.prisma.audio.create({
+              data: {
+                title: (props['name'] as string) || 'Uploaded from lesson',
+                url: uploaded.url,
+                publicId: uploaded.public_id,
+              },
+            });
+            mediaId = audio.id;
+          } else {
+            const video = await this.prisma.video.create({
+              data: {
+                title: (props['name'] as string) || 'Uploaded from lesson',
+                url: uploaded.url,
+                publicId: uploaded.public_id || '',
+              },
+            });
+            mediaId = video.id;
+          }
+
+          node.props = {
+            ...props,
+            url: uploaded.url,
+            publicId: uploaded.public_id,
+            name: mediaId,
+            bankId: mediaId,
+          };
+        } catch (e) {
+          console.error('Failed to upload base64 media', e);
+        }
+      }
+
+      const children = Array.isArray(node.children)
+        ? node.children
+        : Array.isArray(node.content)
+          ? (node.content as LessonNode[])
+          : [];
+
+      for (const c of children) {
+        await collectAndUpload(c);
+      }
+    };
+
+    if (!content) return;
+    for (const block of content) {
+      const nodes = Array.isArray(block?.content) ? block.content : [];
+      for (const n of nodes) {
+        await collectAndUpload(n);
+      }
+    }
+  }
+
   private async syncLessonAudios(lessonId: number, audioIds: number[]) {
     await this.prisma.lesson.update({
       where: { id: lessonId },
@@ -194,6 +273,7 @@ export class LessonService {
   // Обновлённые createLesson / updateLesson внутри класса
 
   async createLesson(dto: CreateLessonDto) {
+    await this.processBase64Media(dto.blocks || []);
     const content = await this.resolveMediaLinksInContent(dto.blocks || []);
 
     const moduleIds = dto.moduleIds?.map(Number) ?? [];
@@ -292,6 +372,7 @@ export class LessonService {
 
     if (!currentLesson) throw new BadRequestException('Lesson not found');
 
+    await this.processBase64Media(dto.blocks || []);
     const content = await this.resolveMediaLinksInContent(dto.blocks || []);
 
     if (dto.publicImgId && currentLesson.publicImgId) {

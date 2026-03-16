@@ -37,6 +37,18 @@ export class FileService {
     });
   }
 
+  async uploadBase64(base64: string, type: FileType, isOther?: boolean) {
+    try {
+      const result = await cloudinary.uploader.upload(base64, {
+        resource_type: type,
+        folder: `ys_academy/${isOther ? `other/${type}s` : `${type}s`}`,
+      });
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
   async deleteFile(publicId: string, type: FileType): Promise<void> {
     await cloudinary.uploader.destroy(publicId, { resource_type: type });
   }
