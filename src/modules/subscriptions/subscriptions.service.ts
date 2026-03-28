@@ -179,13 +179,7 @@ export class SubscriptionsService {
             : undefined,
           nextPaymentDate: dto.nextPaymentDate
             ? new Date(dto.nextPaymentDate)
-            : lessonDates
-              ? new Date(
-                  Math.max(
-                    ...lessonDates.map((date) => new Date(date).getTime()),
-                  ),
-                )
-              : undefined,
+            : undefined,
           // Создаём новые уроки, если переданы даты
           lessons: lessonDates
             ? {
@@ -258,15 +252,8 @@ export class SubscriptionsService {
     }
 
     let nextPaymentDate: Date | null = subscription.nextPaymentDate;
-
-    // Логика для даты следующей оплаты
-    if (dto.paymentStatus === 'partial' || dto.paymentStatus === 'partially_paid') {
-      // При частичной оплате берем дату, переданную с фронта
-      nextPaymentDate = dto.nextPaymentDate ? new Date(dto.nextPaymentDate) : null;
-    } else if (dto.paymentStatus === 'paid') {
-      // При полной оплате подставляем дату последнего урока
-      const lastLesson = subscription.lessons[0];
-      nextPaymentDate = lastLesson ? new Date(lastLesson.scheduledAt) : new Date();
+    if (dto.nextPaymentDate) {
+      nextPaymentDate = new Date(dto.nextPaymentDate);
     }
 
     return this.prisma.userSubscription.update({
